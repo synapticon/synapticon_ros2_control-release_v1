@@ -1,0 +1,39 @@
+pipelines:
+  default:
+    - step:
+        name: Pre-pull docker images
+        size: 2x # More memory
+        services:
+          - docker
+        caches:
+          - docker
+        script:
+          - docker pull ros:humble
+    - step:
+        name: Build and run tests
+        size: 2x # More memory
+        services:
+          - docker
+        caches:
+          - docker
+        script:
+          - export DOCKER_IMAGE="ros:humble"
+          - git clone --quiet --depth 1 https://github.com/ros-industrial/industrial_ci .industrial_ci -b master
+          - .industrial_ci/bitbucket.sh ROS_DISTRO=humble
+    - step:
+        name: Clang format
+        size: 2x # More memory
+        services:
+          - docker
+        caches:
+          - docker
+        script:
+          - export DOCKER_IMAGE="ros:humble"
+          - export CLANG_FORMAT_CHECK="file"
+          - export CLANG_FORMAT_VERSION="14"
+          - git clone --quiet --depth 1 https://github.com/ros-industrial/industrial_ci .industrial_ci -b master
+          - .industrial_ci/bitbucket.sh ROS_DISTRO=humble
+definitions:
+  services:
+    docker:
+      memory: 7100
