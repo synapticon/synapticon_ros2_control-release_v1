@@ -14,35 +14,35 @@
 #include <rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp>
 #include <rclcpp_lifecycle/state.hpp>
 
-namespace synapticon_ros2_control
-{
-class SynapticonSystemInterface : public hardware_interface::SystemInterface
-{
+namespace synapticon_ros2_control {
+class SynapticonSystemInterface : public hardware_interface::SystemInterface {
 public:
   RCLCPP_SHARED_PTR_DEFINITIONS(SynapticonSystemInterface)
 
-  hardware_interface::CallbackReturn on_init(
-    const hardware_interface::HardwareInfo & info) override;
+  hardware_interface::CallbackReturn
+  on_init(const hardware_interface::HardwareInfo &info) override;
 
   hardware_interface::return_type prepare_command_mode_switch(
-    const std::vector<std::string> & start_interfaces,
-    const std::vector<std::string> & stop_interfaces) override;
+      const std::vector<std::string> &start_interfaces,
+      const std::vector<std::string> &stop_interfaces) override;
 
-  hardware_interface::CallbackReturn on_activate(
-    const rclcpp_lifecycle::State & previous_state) override;
+  hardware_interface::CallbackReturn
+  on_activate(const rclcpp_lifecycle::State &previous_state) override;
 
-  hardware_interface::CallbackReturn on_deactivate(
-    const rclcpp_lifecycle::State & previous_state) override;
+  hardware_interface::CallbackReturn
+  on_deactivate(const rclcpp_lifecycle::State &previous_state) override;
 
-  hardware_interface::return_type read(
-    const rclcpp::Time & time, const rclcpp::Duration & period) override;
+  hardware_interface::return_type read(const rclcpp::Time &time,
+                                       const rclcpp::Duration &period) override;
 
-  hardware_interface::return_type write(
-    const rclcpp::Time & time, const rclcpp::Duration & period) override;
+  hardware_interface::return_type
+  write(const rclcpp::Time &time, const rclcpp::Duration &period) override;
 
-  std::vector<hardware_interface::StateInterface> export_state_interfaces() override;
+  std::vector<hardware_interface::StateInterface>
+  export_state_interfaces() override;
 
-  std::vector<hardware_interface::CommandInterface> export_command_interfaces() override;
+  std::vector<hardware_interface::CommandInterface>
+  export_command_interfaces() override;
 
   /**
    * \return logger of the SystemInterface.
@@ -74,8 +74,7 @@ private:
 
   // Enum defining at which control level we are
   // Dumb way of maintaining the command_interface type per joint.
-  enum integration_level_t : std::uint8_t
-  {
+  enum integration_level_t : std::uint8_t {
     UNDEFINED = 0,
     POSITION = 1,
     VELOCITY = 2,
@@ -86,4 +85,4 @@ private:
   std::vector<integration_level_t> control_level_;
 };
 
-}  // namespace synapticon_ros2_control
+} // namespace synapticon_ros2_control
