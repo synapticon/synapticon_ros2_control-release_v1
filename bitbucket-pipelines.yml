@@ -31,6 +31,8 @@ pipelines:
           - export DOCKER_IMAGE="ros:humble"
           - export CLANG_FORMAT_CHECK="file"
           - export CLANG_FORMAT_VERSION="14"
+          # Don't run clang-format on these directories
+          - rm -rf ./osal ./oshw ./soem
           - git clone --quiet --depth 1 https://github.com/ros-industrial/industrial_ci .industrial_ci -b master
           - .industrial_ci/bitbucket.sh ROS_DISTRO=humble
 definitions:

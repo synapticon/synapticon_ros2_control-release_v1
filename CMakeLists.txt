@@ -64,11 +64,18 @@ ament_target_dependencies(
 # Export hardware plugins
 pluginlib_export_plugin_description_file(hardware_interface synapticon_ros2_control.xml)
 
+# ethercat_grant
+add_executable(ethercat_grant ethercat_grant/src/ethercat_grant.cpp)
+target_link_libraries(ethercat_grant cap)
+ament_target_dependencies(ethercat_grant
+                          ${THIS_PACKAGE_INCLUDE_DEPENDS})
+
 install(
   DIRECTORY include/
   DESTINATION include/synapticon_ros2_control
 )
-install(TARGETS synapticon_ros2_control
+install(
+  TARGETS ethercat_grant synapticon_ros2_control
   EXPORT export_synapticon_ros2_control
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib

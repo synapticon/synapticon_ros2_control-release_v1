@@ -1,5 +1,5 @@
-#include "synapticon_ros2_control/soem_utilities.hpp"
 #include "synapticon_ros2_control/synapticon_interface.hpp"
+#include "synapticon_ros2_control/soem_utilities.hpp"
 
 #include <hardware_interface/types/hardware_interface_type_values.hpp>
 #include <rclcpp/rclcpp.hpp>
