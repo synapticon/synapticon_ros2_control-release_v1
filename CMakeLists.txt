@@ -87,6 +87,14 @@ install(FILES
   ${OSHW_HEADERS}
   DESTINATION include/synapticon_ros2_control
 )
+install(
+  DIRECTORY description/ros2_control description/urdf
+  DESTINATION share/synapticon_ros2_control
+)
+install(
+  DIRECTORY bringup/launch bringup/config
+  DESTINATION share/synapticon_ros2_control
+)
 
 if(BUILD_TESTING)
   # TODO

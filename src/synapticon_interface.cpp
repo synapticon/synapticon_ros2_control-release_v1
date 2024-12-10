@@ -212,8 +212,8 @@ SynapticonSystemInterface::read(const rclcpp::Time & /*time*/,
                                 const rclcpp::Duration &period) {
   // BEGIN: This part here is for exemplary purposes - Please do not copy to
   // your production code
-  std::stringstream ss;
-  ss << "Reading states:";
+  // std::stringstream ss;
+  // ss << "Reading states:";
   for (std::size_t i = 0; i < hw_states_positions_.size(); i++) {
     switch (control_level_[i]) {
     case integration_level_t::UNDEFINED:
@@ -240,13 +240,13 @@ SynapticonSystemInterface::read(const rclcpp::Time & /*time*/,
           (hw_states_velocities_[i] * period.seconds()) / hw_slowdown_;
       break;
     }
-    ss << std::fixed << std::setprecision(2) << std::endl
-       << "\t"
-       << "pos: " << hw_states_positions_[i]
-       << ", vel: " << hw_states_velocities_[i]
-       << ", acc: " << hw_states_accelerations_[i] << " for joint " << i;
+    // ss << std::fixed << std::setprecision(2) << std::endl
+    //    << "\t"
+    //    << "pos: " << hw_states_positions_[i]
+    //    << ", vel: " << hw_states_velocities_[i]
+    //    << ", acc: " << hw_states_accelerations_[i] << " for joint " << i;
   }
-  RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 500, "%s", ss.str().c_str());
+  // RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 500, "%s", ss.str().c_str());
   // END: This part here is for exemplary purposes - Please do not copy to your
   // production code
   return hardware_interface::return_type::OK;
