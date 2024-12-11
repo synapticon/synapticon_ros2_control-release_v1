@@ -28,7 +28,7 @@ file(GLOB SOEM_HEADERS soem/*.h)
 file(GLOB OSAL_HEADERS osal/osal.h osal/${OS}/*.h)
 file(GLOB OSHW_HEADERS oshw/${OS}/*.h)
 
-add_library(soem STATIC
+add_library(soem SHARED
   ${SOEM_SOURCES}
   ${OSAL_SOURCES}
   ${OSHW_SOURCES}
@@ -48,16 +48,16 @@ add_library(
   src/soem_utilities.cpp
   src/synapticon_interface.cpp
 )
-target_compile_features(synapticon_ros2_control PUBLIC cxx_std_17)
-target_include_directories(synapticon_ros2_control PUBLIC
+target_include_directories(synapticon_ros2_control PRIVATE
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/osal>
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/osal/${OS}>
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/oshw/${OS}>
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/soem>
 )
+target_link_libraries(synapticon_ros2_control soem)
 ament_target_dependencies(
-  synapticon_ros2_control PUBLIC
+  synapticon_ros2_control
   ${THIS_PACKAGE_INCLUDE_DEPENDS}
 )
 
@@ -75,8 +75,7 @@ install(
   DESTINATION include/synapticon_ros2_control
 )
 install(
-  TARGETS ethercat_grant synapticon_ros2_control
-  EXPORT export_synapticon_ros2_control
+  TARGETS ethercat_grant soem synapticon_ros2_control
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
@@ -100,6 +99,5 @@ if(BUILD_TESTING)
   # TODO
 endif()
 
-ament_export_targets(export_synapticon_ros2_control HAS_LIBRARY_TARGET)
 ament_export_dependencies(${THIS_PACKAGE_INCLUDE_DEPENDS})
 ament_package()

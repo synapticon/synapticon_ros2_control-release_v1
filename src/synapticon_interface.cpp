@@ -7,7 +7,8 @@
 namespace synapticon_ros2_control {
 namespace {
 constexpr char LOG_NAME[] = "synapticon_ros2_control";
-}
+constexpr char ETHERCAT_INTERFACE[] = "eno0";
+} // namespace
 
 hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
     const hardware_interface::HardwareInfo &info) {
@@ -86,6 +87,59 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
       return hardware_interface::CallbackReturn::ERROR;
     }
   }
+
+  // A thread to handle ethercat errors
+  osal_thread_create(&ecat_error_thread_, 128000, (void *)&ecatcheck,
+                     (void *)&ctime);
+
+  // Ethercat initialization
+  if (!ec_init(ETHERCAT_INTERFACE)) {
+    RCLCPP_FATAL(get_logger(),
+                 "Error during initialization of ethercat interface");
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+  if (ec_config_init(FALSE) <= 0) {
+    RCLCPP_FATAL(get_logger(), "No ethercat slaves found!");
+    ec_close();
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+  ec_config_map(&io_map_);
+  ec_configdc();
+  ec_statecheck(0, EC_STATE_SAFE_OP, EC_TIMEOUTSTATE * 4);
+  // Request operational state for all slaves
+  soem_globals::kExpectedWkc =
+      (ec_group[0].outputsWKC * 2) + ec_group[0].inputsWKC;
+  ec_slave[0].state = EC_STATE_OPERATIONAL;
+  // send one valid process data to make outputs in slaves happy
+  ec_send_processdata();
+  ec_receive_processdata(EC_TIMEOUTRET);
+  // request OP state for all slaves
+  ec_writestate(0);
+  size_t chk = 200;
+  // wait for all slaves to reach OP state
+  do {
+    ec_send_processdata();
+    ec_receive_processdata(EC_TIMEOUTRET);
+    ec_statecheck(0, EC_STATE_OPERATIONAL, 50000);
+  } while (chk-- && (ec_slave[0].state != EC_STATE_OPERATIONAL));
+
+  if (ec_slave[0].state != EC_STATE_OPERATIONAL)
+  {
+    RCLCPP_FATAL(get_logger(), "An ethercat slave failed to reach OPERATIONAL state");
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+  soem_globals::kInOp = true;
+
+  // Connect struct pointers to I/O
+  in_somanet_1_ = (InSomanet50t*)ec_slave[0].inputs;
+  out_somanet_1_ = (OutSomanet50t*)ec_slave[0].outputs;
+
+  RCLCPP_FATAL(get_logger(), "Ethercat initialization successful!");
+  RCLCPP_FATAL(get_logger(), "Ethercat initialization successful!");
+  RCLCPP_FATAL(get_logger(), "Ethercat initialization successful!");
+  RCLCPP_FATAL(get_logger(), "Ethercat initialization successful!");
+  RCLCPP_FATAL(get_logger(), "Ethercat initialization successful!");
+  RCLCPP_FATAL(get_logger(), "Ethercat initialization successful!");
 
   return hardware_interface::CallbackReturn::SUCCESS;
 }
@@ -246,9 +300,9 @@ SynapticonSystemInterface::read(const rclcpp::Time & /*time*/,
     //    << ", vel: " << hw_states_velocities_[i]
     //    << ", acc: " << hw_states_accelerations_[i] << " for joint " << i;
   }
-  // RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 500, "%s", ss.str().c_str());
-  // END: This part here is for exemplary purposes - Please do not copy to your
-  // production code
+  // RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 500, "%s",
+  // ss.str().c_str()); END: This part here is for exemplary purposes - Please
+  // do not copy to your production code
   return hardware_interface::return_type::OK;
 }
 
@@ -307,6 +361,11 @@ SynapticonSystemInterface::export_command_interfaces() {
         &hw_commands_accelerations_[i]));
   }
   return command_interfaces;
+}
+
+SynapticonSystemInterface::~SynapticonSystemInterface() {
+  // Close the ethercat connection
+  ec_close();
 }
 
 } // namespace synapticon_ros2_control
