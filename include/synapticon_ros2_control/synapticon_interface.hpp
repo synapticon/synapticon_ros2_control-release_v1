@@ -60,6 +60,7 @@ public:
 
 private:
   // Parameters for the RRBot simulation
+  // TODO: delete them
   double hw_start_sec_;
   double hw_stop_sec_;
   double hw_slowdown_;
@@ -69,24 +70,23 @@ private:
   rclcpp::Clock::SharedPtr clock_;
 
   // Store the commands for the simulated robot
-  std::vector<double> hw_commands_positions_;
   std::vector<double> hw_commands_velocities_;
-  std::vector<double> hw_commands_accelerations_;
+  std::vector<double> hw_commands_efforts_;
   std::vector<double> hw_states_positions_;
   std::vector<double> hw_states_velocities_;
   std::vector<double> hw_states_accelerations_;
+  std::vector<double> hw_states_efforts_;
 
-  // Enum defining at which control level we are
-  // Dumb way of maintaining the command_interface type per joint.
-  enum integration_level_t : std::uint8_t {
+  // Enum defining current control level
+  // TODO: enable position commands
+  enum control_level_t : std::uint8_t {
     UNDEFINED = 0,
-    POSITION = 1,
-    VELOCITY = 2,
-    ACCELERATION = 3
+    VELOCITY = 1,
+    EFFORT = 2, // aka torque
   };
 
   // Active control mode for each actuator
-  std::vector<integration_level_t> control_level_;
+  std::vector<control_level_t> control_level_;
 
   // For SOEM
   OSAL_THREAD_HANDLE ecat_error_thread_;
@@ -126,8 +126,8 @@ private:
     int32_t VelocityOffset;
   } OutSomanet50t;
 
-  InSomanet50t* in_somanet_1_;
-  OutSomanet50t* out_somanet_1_;
+  InSomanet50t *in_somanet_1_;
+  OutSomanet50t *out_somanet_1_;
 };
 
 } // namespace synapticon_ros2_control
