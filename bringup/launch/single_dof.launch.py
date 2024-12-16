@@ -55,16 +55,6 @@ def generate_launch_description():
         [FindPackageShare("synapticon_ros2_control"), "config", "single_dof.rviz"]
     )
 
-    control_node = Node(
-        package="controller_manager",
-        executable="ros2_control_node",
-        parameters=[robot_controllers],
-        remappings=[
-            ("~/robot_description", "/robot_description"),
-        ],
-        output="both",
-    )
-
     robot_state_pub_node = Node(
         package="robot_state_publisher",
         executable="robot_state_publisher",
@@ -113,7 +103,6 @@ def generate_launch_description():
     )
 
     nodes = [
-        control_node,
         robot_state_pub_node,
         fwd_torque_controller_spawner,
         delay_rviz_after_joint_state_broadcaster_spawner,
