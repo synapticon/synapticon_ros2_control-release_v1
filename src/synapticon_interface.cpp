@@ -1,9 +1,10 @@
 #include "synapticon_ros2_control/synapticon_interface.hpp"
-#include "synapticon_ros2_control/soem_utilities.hpp"
 
 #include <hardware_interface/types/hardware_interface_type_values.hpp>
 #include <inttypes.h>
 #include <rclcpp/rclcpp.hpp>
+
+#define EC_TIMEOUTMON 500
 
 namespace synapticon_ros2_control {
 namespace {
@@ -75,7 +76,7 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
   }
 
   // A thread to handle ethercat errors
-  osal_thread_create(&ecat_error_thread_, 128000, (void *)&ecatcheck,
+  osal_thread_create(&ecat_error_thread_, 128000, (void *)& SynapticonSystemInterface::ecatCheck,
                      (void *)&ctime);
 
   // Ethercat initialization
@@ -96,7 +97,7 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
   ec_configdc();
   ec_statecheck(0, EC_STATE_SAFE_OP, EC_TIMEOUTSTATE * 4);
   // Request operational state for all slaves
-  soem_globals::kExpectedWkc =
+  expected_wkc_ =
       (ec_group[0].outputsWKC * 2) + ec_group[0].inputsWKC;
   ec_slave[0].state = EC_STATE_OPERATIONAL;
   // send one valid process data to make outputs in slaves happy
@@ -192,8 +193,8 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_activate(
   // END: This part here is for exemplary purposes - Please do not copy to your
   // production code
 
-  // A flag to etatcheck thread
-  soem_globals::kInOp = true;
+  // A flag to ecat_error_check_ thread
+  in_operation_ = true;
 
   // Set some default values
   for (std::size_t i = 0; i < hw_states_positions_.size(); i++) {
@@ -239,15 +240,15 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_deactivate(
   // END: This part here is for exemplary purposes - Please do not copy to your
   // production code
 
-  // A flag to etatcheck thread
-  soem_globals::kInOp = false;
+  // A flag to ecat_error_check_ thread
+  in_operation_ = false;
 
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
 hardware_interface::return_type
 SynapticonSystemInterface::read(const rclcpp::Time & /*time*/,
-                                const rclcpp::Duration &period) {
+                                const rclcpp::Duration & /*period*/) {
   for (std::size_t i = 0; i < hw_states_positions_.size(); i++) {
     switch (control_level_[i]) {
     case control_level_t::UNDEFINED:
@@ -268,25 +269,8 @@ SynapticonSystemInterface::read(const rclcpp::Time & /*time*/,
 hardware_interface::return_type
 SynapticonSystemInterface::write(const rclcpp::Time & /*time*/,
                                  const rclcpp::Duration & /*period*/) {
-  // // BEGIN: This part here is for exemplary purposes - Please do not copy to
-  // your production code std::stringstream ss; ss << "Writing commands:"; for
-  // (std::size_t i = 0; i < hw_commands_positions_.size(); i++)
-  // {
-  //   // Simulate sending commands to the hardware
-  //   ss << std::fixed << std::setprecision(2) << std::endl
-  //      << "\t"
-  //      << "command pos: " << hw_commands_positions_[i] << ", vel: " <<
-  //      hw_commands_velocities_[i]
-  //      << ", acc: " << hw_commands_accelerations_[i] << " for joint " << i
-  //      << ", control lvl: " << static_cast<int>(control_level_[i]);
-  // }
-  // RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 500, "%s",
-  // ss.str().c_str());
-  // // END: This part here is for exemplary purposes - Please do not copy to
-  // your production code
-
   ec_send_processdata();
-  soem_globals::kWkc = ec_receive_processdata(EC_TIMEOUTRET);
+  wkc_ = ec_receive_processdata(EC_TIMEOUTRET);
 
   if ((in_somanet_1_->Statusword & 0b0000000001101111) == 0b0000000000100111)
   {
@@ -295,16 +279,12 @@ SynapticonSystemInterface::write(const rclcpp::Time & /*time*/,
     return hardware_interface::return_type::ERROR;
   }
 
-  // TODO: add other options besides torque control
-  if (control_level_[0] == control_level_t::EFFORT)
+  for (std::size_t i = 0; i < hw_commands_efforts_.size(); ++i)
   {
-    out_somanet_1_->TargetTorque = 0;
-  }
-  else
-  {
-    RCLCPP_FATAL(get_logger(),
-                  "Controller 'level' is not in an expected state");
-    return hardware_interface::return_type::ERROR;
+    if (control_level_[0] == control_level_t::EFFORT)
+    {
+      out_somanet_1_->TargetTorque = hw_commands_efforts_[i];
+    }
   }
 
   printf(" Statusword: %X ,", in_somanet_1_->Statusword);
@@ -315,7 +295,7 @@ SynapticonSystemInterface::write(const rclcpp::Time & /*time*/,
   printf(" ActualTorque: %" PRId32 " ,", in_somanet_1_->TorqueValue);
   printf(" DemandTorque: %" PRId32 " ,", in_somanet_1_->TorqueDemand);
 
-  soem_globals::kNeedlf = true;
+  needlf_ = true;
 
   return hardware_interface::return_type::OK;
 }
@@ -357,6 +337,68 @@ SynapticonSystemInterface::export_command_interfaces() {
 SynapticonSystemInterface::~SynapticonSystemInterface() {
   // Close the ethercat connection
   ec_close();
+}
+
+OSAL_THREAD_FUNC SynapticonSystemInterface::ecatCheck(void * /*ptr*/) {
+  int slave;
+  uint8 currentgroup = 0;
+
+  while (1) {
+    if (in_operation_ &&
+        ((wkc_ < expected_wkc_) ||
+         ec_group[currentgroup].docheckstate)) {
+      if (needlf_) {
+        needlf_ = FALSE;
+        printf("\n");
+      }
+      /* one ore more slaves are not responding */
+      ec_group[currentgroup].docheckstate = FALSE;
+      ec_readstate();
+      for (slave = 1; slave <= ec_slavecount; slave++) {
+        if ((ec_slave[slave].group == currentgroup) &&
+            (ec_slave[slave].state != EC_STATE_OPERATIONAL)) {
+          ec_group[currentgroup].docheckstate = TRUE;
+          if (ec_slave[slave].state == (EC_STATE_SAFE_OP + EC_STATE_ERROR)) {
+            printf("ERROR : slave %d is in SAFE_OP + ERROR, attempting ack.\n",
+                   slave);
+            ec_slave[slave].state = (EC_STATE_SAFE_OP + EC_STATE_ACK);
+            ec_writestate(slave);
+          } else if (ec_slave[slave].state == EC_STATE_SAFE_OP) {
+            printf("WARNING : slave %d is in SAFE_OP, change to OPERATIONAL.\n",
+                   slave);
+            ec_slave[slave].state = EC_STATE_OPERATIONAL;
+            ec_writestate(slave);
+          } else if (ec_slave[slave].state > EC_STATE_NONE) {
+            if (ec_reconfig_slave(slave, EC_TIMEOUTMON)) {
+              ec_slave[slave].islost = FALSE;
+              printf("MESSAGE : slave %d reconfigured\n", slave);
+            }
+          } else if (!ec_slave[slave].islost) {
+            /* re-check state */
+            ec_statecheck(slave, EC_STATE_OPERATIONAL, EC_TIMEOUTRET);
+            if (ec_slave[slave].state == EC_STATE_NONE) {
+              ec_slave[slave].islost = TRUE;
+              printf("ERROR : slave %d lost\n", slave);
+            }
+          }
+        }
+        if (ec_slave[slave].islost) {
+          if (ec_slave[slave].state == EC_STATE_NONE) {
+            if (ec_recover_slave(slave, EC_TIMEOUTMON)) {
+              ec_slave[slave].islost = FALSE;
+              printf("MESSAGE : slave %d recovered\n", slave);
+            }
+          } else {
+            ec_slave[slave].islost = FALSE;
+            printf("MESSAGE : slave %d found\n", slave);
+          }
+        }
+      }
+      if (!ec_group[currentgroup].docheckstate)
+        printf("OK : all slaves resumed OPERATIONAL.\n");
+    }
+    osal_usleep(10000);
+  }
 }
 
 } // namespace synapticon_ros2_control

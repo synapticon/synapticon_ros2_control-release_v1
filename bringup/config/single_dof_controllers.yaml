@@ -10,4 +10,4 @@ forward_torque_controller:
     type: forward_command_controller/ForwardCommandController
     joints:
       - joint1
-    interface_name: torque
+    interface_name: effort

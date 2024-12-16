@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <memory>
 #include <string>
 #include <vector>
@@ -17,6 +18,7 @@
 #include "ethercat.h"
 
 namespace synapticon_ros2_control {
+
 class SynapticonSystemInterface : public hardware_interface::SystemInterface {
 public:
   RCLCPP_SHARED_PTR_DEFINITIONS(SynapticonSystemInterface)
@@ -59,6 +61,11 @@ public:
   rclcpp::Clock::SharedPtr get_clock() const { return clock_; }
 
 private:
+  /**
+   * @brief Error checking. Typically runs in a separate thread.
+   */
+  OSAL_THREAD_FUNC ecatCheck(void *ptr);
+
   // Parameters for the RRBot simulation
   // TODO: delete them
   double hw_start_sec_;
@@ -128,6 +135,12 @@ private:
 
   InSomanet50t *in_somanet_1_;
   OutSomanet50t *out_somanet_1_;
+
+  // For coordination between threads
+  std::atomic<bool> in_operation_;
+  volatile std::atomic<int> wkc_;
+  std::atomic<int> expected_wkc_;
+  std::atomic<bool> needlf_;
 };
 
 } // namespace synapticon_ros2_control

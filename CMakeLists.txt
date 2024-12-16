@@ -47,7 +47,6 @@ target_include_directories(synapticon_soem PUBLIC
 add_library(
   synapticon_ros2_control
   SHARED
-  src/soem_utilities.cpp
   src/synapticon_interface.cpp
 )
 target_include_directories(synapticon_ros2_control PUBLIC
@@ -66,12 +65,6 @@ ament_target_dependencies(
 # Export hardware plugins
 pluginlib_export_plugin_description_file(hardware_interface synapticon_ros2_control.xml)
 
-# ethercat_grant
-add_executable(ethercat_grant ethercat_grant/src/ethercat_grant.cpp)
-target_link_libraries(ethercat_grant cap)
-ament_target_dependencies(ethercat_grant
-                          ${THIS_PACKAGE_INCLUDE_DEPENDS})
-
 # A simple executable to test Synapticon connection without ros2_control
 add_executable(torque_control_executable src/torque_control_executable.cpp)
 target_link_libraries(torque_control_executable synapticon_soem)
@@ -83,7 +76,7 @@ install(
   DESTINATION include/synapticon_ros2_control
 )
 install(
-  TARGETS ethercat_grant synapticon_ros2_control synapticon_soem torque_control_executable
+  TARGETS synapticon_ros2_control synapticon_soem torque_control_executable
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin

@@ -28,7 +28,8 @@ Give the `ros2_control_node` executable special privileges to communicate over e
 sudo apt install patchelf
 cd /opt/ros/humble/lib/controller_manager
 sudo setcap cap_net_raw=ep ./ros2_control_node
-sudo patchelf --set-rpath /opt/ros/humble/lib/:/lib/x86_64-linux-gnu/ ros2_control_node
+sudo patchelf --set-rpath /opt/ros/humble/lib:/lib/x86_64-linux-gnu ./ros2_control_node
+sudo ldconfig
 ```
 
 This only needs to be run once, or every time you install a new `controller_manager` debian.
@@ -38,3 +39,9 @@ Then you can launch the demo:
 `ros2 launch synapticon_ros2_control single_dof.launch.py`
 
 You should see a single-dof robot with torque control activated.
+
+### Notes to developers ###
+
+The patchelf command above probably seems mysterious. It's needed b/c linux doesn't allow dynamic linking after `setcap` has been applied (security feature).
+
+You can tell which directories need to be added with the `patchelf` command by running `ldd /opt/ros/humble/lib/controller_manager/ros2_control_node` prior to making any changes.

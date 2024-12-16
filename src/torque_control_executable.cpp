@@ -63,11 +63,11 @@ typedef struct
 } out_somanet_50t;
 #pragma pack()
 
-void simpletest(char* ifname)
+void simpletest(const char* ifname)
 {
     int i, j, chk;
-    needlf = FALSE;
-    inOP = FALSE;
+    needlf = false;
+    inOP = false;
 
     printf("Starting simple test\n");
 
@@ -78,7 +78,7 @@ void simpletest(char* ifname)
       /* find and auto-config slaves */
 
 
-      if (ec_config_init(FALSE) > 0)
+      if (ec_config_init(false) > 0)
       {
         printf("%d slaves found and configured.\n", ec_slavecount);
 
@@ -112,7 +112,7 @@ void simpletest(char* ifname)
         if (ec_slave[0].state == EC_STATE_OPERATIONAL)
         {
           printf("Operational state reached for all slaves.\n");
-          inOP = TRUE;
+          inOP = true;
 
           // initialize counter j
           j = 0;
@@ -164,11 +164,11 @@ void simpletest(char* ifname)
               printf(" DemandTorque: %" PRId32 " ,", in_somanet_1->TorqueDemand);
 
               printf(" T:%" PRId64 "\r", ec_DCtime);
-              needlf = TRUE;
+              needlf = true;
             }
             osal_usleep(5000);
           }
-          inOP = FALSE;
+          inOP = false;
         }
         else
         {
@@ -213,17 +213,17 @@ OSAL_THREAD_FUNC ecatcheck(void* ptr)
     {
       if (needlf)
       {
-        needlf = FALSE;
+        needlf = false;
         printf("\n");
       }
       /* one ore more slaves are not responding */
-      ec_group[currentgroup].docheckstate = FALSE;
+      ec_group[currentgroup].docheckstate = false;
       ec_readstate();
       for (slave = 1; slave <= ec_slavecount; slave++)
       {
         if ((ec_slave[slave].group == currentgroup) && (ec_slave[slave].state != EC_STATE_OPERATIONAL))
         {
-          ec_group[currentgroup].docheckstate = TRUE;
+          ec_group[currentgroup].docheckstate = true;
           if (ec_slave[slave].state == (EC_STATE_SAFE_OP + EC_STATE_ERROR))
           {
             printf("ERROR : slave %d is in SAFE_OP + ERROR, attempting ack.\n", slave);
@@ -240,7 +240,7 @@ OSAL_THREAD_FUNC ecatcheck(void* ptr)
           {
             if (ec_reconfig_slave(slave, EC_TIMEOUTMON))
             {
-              ec_slave[slave].islost = FALSE;
+              ec_slave[slave].islost = false;
               printf("MESSAGE : slave %d reconfigured\n", slave);
             }
           }
@@ -250,7 +250,7 @@ OSAL_THREAD_FUNC ecatcheck(void* ptr)
             ec_statecheck(slave, EC_STATE_OPERATIONAL, EC_TIMEOUTRET);
             if (ec_slave[slave].state == EC_STATE_NONE)
             {
-              ec_slave[slave].islost = TRUE;
+              ec_slave[slave].islost = true;
               printf("ERROR : slave %d lost\n", slave);
             }
           }
@@ -261,13 +261,13 @@ OSAL_THREAD_FUNC ecatcheck(void* ptr)
           {
             if (ec_recover_slave(slave, EC_TIMEOUTMON))
             {
-              ec_slave[slave].islost = FALSE;
+              ec_slave[slave].islost = false;
               printf("MESSAGE : slave %d recovered\n", slave);
             }
           }
           else
           {
-            ec_slave[slave].islost = FALSE;
+            ec_slave[slave].islost = false;
             printf("MESSAGE : slave %d found\n", slave);
           }
         }
@@ -279,14 +279,15 @@ OSAL_THREAD_FUNC ecatcheck(void* ptr)
   }
 }
 
-int main(int argc, char* argv[])
+int main(int /*argc*/, char* /*argv*/[])
 {
   printf("SOEM (Simple Open EtherCAT Master)\nSimple test\n");
 
   /* create thread to handle slave error handling in OP */
   osal_thread_create(&thread1, 128000, (void*)&ecatcheck, (void*)&ctime);
   /* start cyclic part */
-  simpletest("eno0");
+  const char interface_name[] = "eno0";
+  simpletest(interface_name);
 
   printf("End program\n");
   return (0);
