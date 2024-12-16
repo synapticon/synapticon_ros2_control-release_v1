@@ -2,6 +2,7 @@
 #include "synapticon_ros2_control/soem_utilities.hpp"
 
 #include <hardware_interface/types/hardware_interface_type_values.hpp>
+#include <inttypes.h>
 #include <rclcpp/rclcpp.hpp>
 
 namespace synapticon_ros2_control {
@@ -85,50 +86,47 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
                             << ec_init_status);
     return hardware_interface::CallbackReturn::ERROR;
   }
-  /*
-    if (ec_config_init(FALSE) <= 0) {
-      RCLCPP_FATAL(get_logger(), "No ethercat slaves found!");
-      ec_close();
-      return hardware_interface::CallbackReturn::ERROR;
-    }
-    ec_config_map(&io_map_);
-    ec_configdc();
-    ec_statecheck(0, EC_STATE_SAFE_OP, EC_TIMEOUTSTATE * 4);
-    // Request operational state for all slaves
-    soem_globals::kExpectedWkc =
-        (ec_group[0].outputsWKC * 2) + ec_group[0].inputsWKC;
-    ec_slave[0].state = EC_STATE_OPERATIONAL;
-    // send one valid process data to make outputs in slaves happy
+
+  if (ec_config_init(FALSE) <= 0) {
+    RCLCPP_FATAL(get_logger(), "No ethercat slaves found!");
+    ec_close();
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+  ec_config_map(&io_map_);
+  ec_configdc();
+  ec_statecheck(0, EC_STATE_SAFE_OP, EC_TIMEOUTSTATE * 4);
+  // Request operational state for all slaves
+  soem_globals::kExpectedWkc =
+      (ec_group[0].outputsWKC * 2) + ec_group[0].inputsWKC;
+  ec_slave[0].state = EC_STATE_OPERATIONAL;
+  // send one valid process data to make outputs in slaves happy
+  ec_send_processdata();
+  ec_receive_processdata(EC_TIMEOUTRET);
+  // request OP state for all slaves
+  ec_writestate(0);
+  ec_send_processdata();
+  ec_receive_processdata(EC_TIMEOUTRET);
+  size_t chk = 200;
+  // wait for all slaves to reach OP state
+  do {
     ec_send_processdata();
     ec_receive_processdata(EC_TIMEOUTRET);
-    // request OP state for all slaves
-    ec_writestate(0);
-    size_t chk = 200;
-    // wait for all slaves to reach OP state
-    do {
-      ec_send_processdata();
-      ec_receive_processdata(EC_TIMEOUTRET);
-      ec_statecheck(0, EC_STATE_OPERATIONAL, 50000);
-    } while (chk-- && (ec_slave[0].state != EC_STATE_OPERATIONAL));
+    ec_statecheck(0, EC_STATE_OPERATIONAL, 50000);
+  } while (chk-- && (ec_slave[0].state != EC_STATE_OPERATIONAL));
 
-    if (ec_slave[0].state != EC_STATE_OPERATIONAL) {
-      RCLCPP_FATAL(get_logger(),
-                   "An ethercat slave failed to reach OPERATIONAL state");
-      return hardware_interface::CallbackReturn::ERROR;
-    }
-    soem_globals::kInOp = true;
+  if (ec_slave[0].state != EC_STATE_OPERATIONAL) {
+    RCLCPP_FATAL(get_logger(),
+                  "An ethercat slave failed to reach OPERATIONAL state");
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+  // TODO: Need to set kInOp to false when not being used.
+  // This lets the etatcheck thread finish.
+  soem_globals::kInOp = true;
 
-    // Connect struct pointers to I/O
-    in_somanet_1_ = (InSomanet50t *)ec_slave[0].inputs;
-    out_somanet_1_ = (OutSomanet50t *)ec_slave[0].outputs;
+  // Connect struct pointers to I/O
+  in_somanet_1_ = (InSomanet50t *)ec_slave[0].inputs;
+  out_somanet_1_ = (OutSomanet50t *)ec_slave[0].outputs;
 
-    RCLCPP_FATAL(get_logger(), "Ethercat initialization successful!");
-    RCLCPP_FATAL(get_logger(), "Ethercat initialization successful!");
-    RCLCPP_FATAL(get_logger(), "Ethercat initialization successful!");
-    RCLCPP_FATAL(get_logger(), "Ethercat initialization successful!");
-    RCLCPP_FATAL(get_logger(), "Ethercat initialization successful!");
-    RCLCPP_FATAL(get_logger(), "Ethercat initialization successful!");
-  */
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
@@ -283,6 +281,38 @@ SynapticonSystemInterface::write(const rclcpp::Time & /*time*/,
   // ss.str().c_str());
   // // END: This part here is for exemplary purposes - Please do not copy to
   // your production code
+
+  ec_send_processdata();
+  soem_globals::kWkc = ec_receive_processdata(EC_TIMEOUTRET);
+
+  if ((in_somanet_1_->Statusword & 0b0000000001101111) == 0b0000000000100111)
+  {
+    RCLCPP_FATAL(get_logger(),
+                  "Motor drive status is unexpected state");
+    return hardware_interface::return_type::ERROR;
+  }
+
+  // TODO: add other options besides torque control
+  if (control_level_[0] == control_level_t::EFFORT)
+  {
+    out_somanet_1_->TargetTorque = 0;
+  }
+  else
+  {
+    RCLCPP_FATAL(get_logger(),
+                  "Controller 'level' is not in an expected state");
+    return hardware_interface::return_type::ERROR;
+  }
+
+  printf(" Statusword: %X ,", in_somanet_1_->Statusword);
+  printf(" Op Mode Display: %d ,", in_somanet_1_->OpModeDisplay);
+  // printf(" ActualPos: %" PRId32 " ,", in_somanet_1_->PositionValue);
+  // printf(" ActualVel: %" PRId32 " ,", in_somanet_1_->VelocityValue);
+  // printf(" DemandVel: %" PRId32 " ,", in_somanet_1_->VelocityDemandValue);
+  printf(" ActualTorque: %" PRId32 " ,", in_somanet_1_->TorqueValue);
+  printf(" DemandTorque: %" PRId32 " ,", in_somanet_1_->TorqueDemand);
+
+  soem_globals::kNeedlf = true;
 
   return hardware_interface::return_type::OK;
 }
