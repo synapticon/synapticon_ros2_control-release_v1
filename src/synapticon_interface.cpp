@@ -119,9 +119,6 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
                   "An ethercat slave failed to reach OPERATIONAL state");
     return hardware_interface::CallbackReturn::ERROR;
   }
-  // TODO: Need to set kInOp to false when not being used.
-  // This lets the etatcheck thread finish.
-  soem_globals::kInOp = true;
 
   // Connect struct pointers to I/O
   in_somanet_1_ = (InSomanet50t *)ec_slave[0].inputs;
@@ -195,6 +192,9 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_activate(
   // END: This part here is for exemplary purposes - Please do not copy to your
   // production code
 
+  // A flag to etatcheck thread
+  soem_globals::kInOp = true;
+
   // Set some default values
   for (std::size_t i = 0; i < hw_states_positions_.size(); i++) {
     if (std::isnan(hw_states_positions_[i])) {
@@ -238,6 +238,9 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_deactivate(
   RCLCPP_INFO(get_logger(), "Successfully deactivated!");
   // END: This part here is for exemplary purposes - Please do not copy to your
   // production code
+
+  // A flag to etatcheck thread
+  soem_globals::kInOp = false;
 
   return hardware_interface::CallbackReturn::SUCCESS;
 }

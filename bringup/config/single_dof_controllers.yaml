@@ -5,9 +5,9 @@ controller_manager:
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
 
-forward_velocity_controller:
+forward_torque_controller:
   ros__parameters:
     type: forward_command_controller/ForwardCommandController
     joints:
       - joint1
-    interface_name: velocity
+    interface_name: torque

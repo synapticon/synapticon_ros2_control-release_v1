@@ -62,7 +62,6 @@ def generate_launch_description():
         remappings=[
             ("~/robot_description", "/robot_description"),
         ],
-        arguments=["--launch-prefix", "ethercat_grant"],
         output="both",
     )
 
@@ -88,10 +87,10 @@ def generate_launch_description():
         arguments=["joint_state_broadcaster"],
     )
 
-    fwd_vel_controller_spawner = Node(
+    fwd_torque_controller_spawner = Node(
         package="controller_manager",
         executable="spawner",
-        arguments=["forward_velocity_controller", "--param-file", robot_controllers],
+        arguments=["forward_torque_controller", "--param-file", robot_controllers],
     )
 
     # Delay rviz start after `joint_state_broadcaster`
@@ -104,10 +103,10 @@ def generate_launch_description():
 
     # Delay start of joint_state_broadcaster after `robot_controller`
     # TODO(anyone): This is a workaround for flaky tests. Remove when fixed.
-    delay_joint_state_broadcaster_after_fwd_vel_controller_spawner = (
+    delay_joint_state_broadcaster_after_fwd_torque_controller_spawner = (
         RegisterEventHandler(
             event_handler=OnProcessExit(
-                target_action=fwd_vel_controller_spawner,
+                target_action=fwd_torque_controller_spawner,
                 on_exit=[joint_state_broadcaster_spawner],
             )
         )
@@ -116,9 +115,9 @@ def generate_launch_description():
     nodes = [
         control_node,
         robot_state_pub_node,
-        fwd_vel_controller_spawner,
+        fwd_torque_controller_spawner,
         delay_rviz_after_joint_state_broadcaster_spawner,
-        delay_joint_state_broadcaster_after_fwd_vel_controller_spawner,
+        delay_joint_state_broadcaster_after_fwd_torque_controller_spawner,
     ]
 
     return LaunchDescription(declared_arguments + nodes)

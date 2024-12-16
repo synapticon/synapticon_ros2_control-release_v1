@@ -22,18 +22,19 @@ The motor seeks to maintain zero torque.
 
 ### ros2_control ###
 
-Launch a simple demo:
+Give the `ros2_control_node` executable special privileges to communicate over ethercat without sudo:
+
+```
+sudo apt install patchelf
+cd /opt/ros/humble/lib/controller_manager
+sudo setcap cap_net_raw=ep ./ros2_control_node
+sudo patchelf --set-rpath /opt/ros/humble/lib/:/lib/x86_64-linux-gnu/ ros2_control_node
+```
+
+This only needs to be run once, or every time you install a new `controller_manager` debian.
+
+Then you can launch the demo:
 
 `ros2 launch synapticon_ros2_control single_dof.launch.py`
 
-The controller itself should be launched as `sudo` for ethercat access:
-
-TODO - nodes launched as sudo can't communicate with other nodes
-
-`sudo -i`
-
-`source /home/your_user/.bashrc`
-
-`source your_workspace/install/setup.bash`
-
-`ros2 launch synapticon_ros2_control elevated_privileges.launch.py`
+You should see a single-dof robot with torque control activated.
