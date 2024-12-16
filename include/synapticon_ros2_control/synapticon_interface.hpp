@@ -66,12 +66,6 @@ private:
    */
   OSAL_THREAD_FUNC ecatCheck(void *ptr);
 
-  // Parameters for the RRBot simulation
-  // TODO: delete them
-  double hw_start_sec_;
-  double hw_stop_sec_;
-  double hw_slowdown_;
-
   // Objects for logging
   std::shared_ptr<rclcpp::Logger> logger_;
   rclcpp::Clock::SharedPtr clock_;
@@ -133,8 +127,8 @@ private:
     int32_t VelocityOffset;
   } OutSomanet50t;
 
-  InSomanet50t *in_somanet_1_;
-  OutSomanet50t *out_somanet_1_;
+  std::vector<InSomanet50t *> in_somanet_1_;
+  std::vector<OutSomanet50t *> out_somanet_1_;
 
   // For coordination between threads
   std::atomic<bool> in_operation_;

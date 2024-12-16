@@ -22,13 +22,6 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
       rclcpp::get_logger("synapticon_interface"));
   clock_ = std::make_shared<rclcpp::Clock>(rclcpp::Clock());
 
-  // BEGIN: This part here is for exemplary purposes - Please do not copy to
-  // your production code
-  hw_start_sec_ = 1.0;
-  hw_stop_sec_ = 1.0;
-  hw_slowdown_ = 1.0;
-  // END: This part here is for exemplary purposes - Please do not copy to your
-  // production code
   hw_states_positions_.resize(info_.joints.size(),
                               std::numeric_limits<double>::quiet_NaN());
   hw_states_velocities_.resize(info_.joints.size(),
@@ -76,7 +69,8 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
   }
 
   // A thread to handle ethercat errors
-  osal_thread_create(&ecat_error_thread_, 128000, (void *)& SynapticonSystemInterface::ecatCheck,
+  osal_thread_create(&ecat_error_thread_, 128000,
+                     (void *)&SynapticonSystemInterface::ecatCheck,
                      (void *)&ctime);
 
   // Ethercat initialization
@@ -88,7 +82,7 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
     return hardware_interface::CallbackReturn::ERROR;
   }
 
-  if (ec_config_init(FALSE) <= 0) {
+  if (ec_config_init(false) <= 0) {
     RCLCPP_FATAL(get_logger(), "No ethercat slaves found!");
     ec_close();
     return hardware_interface::CallbackReturn::ERROR;
@@ -97,8 +91,7 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
   ec_configdc();
   ec_statecheck(0, EC_STATE_SAFE_OP, EC_TIMEOUTSTATE * 4);
   // Request operational state for all slaves
-  expected_wkc_ =
-      (ec_group[0].outputsWKC * 2) + ec_group[0].inputsWKC;
+  expected_wkc_ = (ec_group[0].outputsWKC * 2) + ec_group[0].inputsWKC;
   ec_slave[0].state = EC_STATE_OPERATIONAL;
   // send one valid process data to make outputs in slaves happy
   ec_send_processdata();
@@ -117,13 +110,15 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
 
   if (ec_slave[0].state != EC_STATE_OPERATIONAL) {
     RCLCPP_FATAL(get_logger(),
-                  "An ethercat slave failed to reach OPERATIONAL state");
+                 "An ethercat slave failed to reach OPERATIONAL state");
     return hardware_interface::CallbackReturn::ERROR;
   }
 
   // Connect struct pointers to I/O
-  in_somanet_1_ = (InSomanet50t *)ec_slave[0].inputs;
-  out_somanet_1_ = (OutSomanet50t *)ec_slave[0].outputs;
+  for (size_t joint_idx = 0; joint_idx < info_.joints.size(); ++joint_idx) {
+    in_somanet_1_.push_back((InSomanet50t *)ec_slave[joint_idx].inputs);
+    out_somanet_1_.push_back((OutSomanet50t *)ec_slave[joint_idx].outputs);
+  }
 
   return hardware_interface::CallbackReturn::SUCCESS;
 }
@@ -182,16 +177,6 @@ SynapticonSystemInterface::prepare_command_mode_switch(
 
 hardware_interface::CallbackReturn SynapticonSystemInterface::on_activate(
     const rclcpp_lifecycle::State & /*previous_state*/) {
-  // BEGIN: This part here is for exemplary purposes - Please do not copy to
-  // your production code
-  RCLCPP_INFO(get_logger(), "Activating... please wait...");
-
-  for (int i = 0; i < hw_start_sec_; i++) {
-    rclcpp::sleep_for(std::chrono::seconds(1));
-    RCLCPP_INFO(get_logger(), "%.1f seconds left...", hw_start_sec_ - i);
-  }
-  // END: This part here is for exemplary purposes - Please do not copy to your
-  // production code
 
   // A flag to ecat_error_check_ thread
   in_operation_ = true;
@@ -227,18 +212,6 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_activate(
 
 hardware_interface::CallbackReturn SynapticonSystemInterface::on_deactivate(
     const rclcpp_lifecycle::State & /*previous_state*/) {
-  // BEGIN: This part here is for exemplary purposes - Please do not copy to
-  // your production code
-  RCLCPP_INFO(get_logger(), "Deactivating... please wait...");
-
-  for (int i = 0; i < hw_stop_sec_; i++) {
-    rclcpp::sleep_for(std::chrono::seconds(1));
-    RCLCPP_INFO(get_logger(), "%.1f seconds left...", hw_stop_sec_ - i);
-  }
-
-  RCLCPP_INFO(get_logger(), "Successfully deactivated!");
-  // END: This part here is for exemplary purposes - Please do not copy to your
-  // production code
 
   // A flag to ecat_error_check_ thread
   in_operation_ = false;
@@ -254,15 +227,26 @@ SynapticonSystemInterface::read(const rclcpp::Time & /*time*/,
     case control_level_t::UNDEFINED:
       // RCLCPP_INFO(get_logger(), "Nothing is using the hardware interface!");
       return hardware_interface::return_type::OK;
+    case control_level_t::VELOCITY:
+      // InSomanet50t doesn't include acceleration
+      hw_states_accelerations_[i] = 0;
+      hw_states_velocities_[i] = in_somanet_1_[i]->VelocityValue;
+      hw_states_positions_[i] = in_somanet_1_[i]->PositionValue;
+      hw_states_efforts_[i] = in_somanet_1_[i]->TorqueValue;
+      break;
+    case control_level_t::EFFORT:
+      hw_states_accelerations_[i] = 0;
+      hw_states_velocities_[i] = in_somanet_1_[i]->VelocityValue;
+      hw_states_positions_[i] = in_somanet_1_[i]->PositionValue;
+      hw_states_efforts_[i] = in_somanet_1_[i]->TorqueValue;
       break;
     default:
-      // TODO: read from hw
-      hw_states_accelerations_[i] = 0;
-      hw_states_velocities_[i] = 0;
-      hw_states_positions_[i] = 0;
-      hw_states_efforts_[i] = 0;
+      // This should never happen
+      RCLCPP_FATAL(get_logger(), "Unexpected control_level_t within read()");
+      return hardware_interface::return_type::ERROR;
     }
   }
+
   return hardware_interface::return_type::OK;
 }
 
@@ -272,28 +256,33 @@ SynapticonSystemInterface::write(const rclcpp::Time & /*time*/,
   ec_send_processdata();
   wkc_ = ec_receive_processdata(EC_TIMEOUTRET);
 
-  if ((in_somanet_1_->Statusword & 0b0000000001101111) == 0b0000000000100111)
-  {
-    RCLCPP_FATAL(get_logger(),
-                  "Motor drive status is unexpected state");
-    return hardware_interface::return_type::ERROR;
+  if (in_somanet_1_.size() < 1) {
+    return hardware_interface::return_type::OK;
   }
 
-  for (std::size_t i = 0; i < hw_commands_efforts_.size(); ++i)
-  {
-    if (control_level_[0] == control_level_t::EFFORT)
-    {
-      out_somanet_1_->TargetTorque = hw_commands_efforts_[i];
+  for (std::size_t i = 0; i < hw_commands_efforts_.size(); ++i) {
+    if ((in_somanet_1_[i]->Statusword & 0b0000000001101111) ==
+        0b0000000000100111) {
+      RCLCPP_FATAL(get_logger(), "Motor drive status is unexpected state");
+      return hardware_interface::return_type::ERROR;
+    }
+
+    if (control_level_[i] == control_level_t::EFFORT) {
+      out_somanet_1_[i]->TargetTorque = hw_commands_efforts_[i];
+    } else if (control_level_[i] == control_level_t::VELOCITY) {
+      out_somanet_1_[i]->TargetTorque = hw_commands_velocities_[i];
     }
   }
 
-  printf(" Statusword: %X ,", in_somanet_1_->Statusword);
-  printf(" Op Mode Display: %d ,", in_somanet_1_->OpModeDisplay);
-  // printf(" ActualPos: %" PRId32 " ,", in_somanet_1_->PositionValue);
-  // printf(" ActualVel: %" PRId32 " ,", in_somanet_1_->VelocityValue);
-  // printf(" DemandVel: %" PRId32 " ,", in_somanet_1_->VelocityDemandValue);
-  printf(" ActualTorque: %" PRId32 " ,", in_somanet_1_->TorqueValue);
-  printf(" DemandTorque: %" PRId32 " ,", in_somanet_1_->TorqueDemand);
+  // printf(" Statusword 0: %X ,", in_somanet_1_[0]->Statusword);
+  // printf(" Op Mode Display 0: %d ,", in_somanet_1_[0]->OpModeDisplay);
+  // printf(" ActualPos 0: %" PRId32 " ,", in_somanet_1_[0]->PositionValue);
+  // printf(" ActualVel 0: %" PRId32 " ,", in_somanet_1_[0]->VelocityValue);
+  // printf(" DemandVel 0: %" PRId32 " ,",
+  // in_somanet_1_[0]->VelocityDemandValue); printf(" ActualTorque 0: %" PRId32
+  // " ,", in_somanet_1_[0]->TorqueValue); printf(" DemandTorque 0: %" PRId32 "
+  // ,", in_somanet_1_[0]->TorqueDemand);
+  std::cerr << (double)in_somanet_1_[0]->PositionValue << std::endl;
 
   needlf_ = true;
 
@@ -345,19 +334,18 @@ OSAL_THREAD_FUNC SynapticonSystemInterface::ecatCheck(void * /*ptr*/) {
 
   while (1) {
     if (in_operation_ &&
-        ((wkc_ < expected_wkc_) ||
-         ec_group[currentgroup].docheckstate)) {
+        ((wkc_ < expected_wkc_) || ec_group[currentgroup].docheckstate)) {
       if (needlf_) {
-        needlf_ = FALSE;
+        needlf_ = false;
         printf("\n");
       }
       /* one ore more slaves are not responding */
-      ec_group[currentgroup].docheckstate = FALSE;
+      ec_group[currentgroup].docheckstate = false;
       ec_readstate();
       for (slave = 1; slave <= ec_slavecount; slave++) {
         if ((ec_slave[slave].group == currentgroup) &&
             (ec_slave[slave].state != EC_STATE_OPERATIONAL)) {
-          ec_group[currentgroup].docheckstate = TRUE;
+          ec_group[currentgroup].docheckstate = true;
           if (ec_slave[slave].state == (EC_STATE_SAFE_OP + EC_STATE_ERROR)) {
             printf("ERROR : slave %d is in SAFE_OP + ERROR, attempting ack.\n",
                    slave);
@@ -370,14 +358,14 @@ OSAL_THREAD_FUNC SynapticonSystemInterface::ecatCheck(void * /*ptr*/) {
             ec_writestate(slave);
           } else if (ec_slave[slave].state > EC_STATE_NONE) {
             if (ec_reconfig_slave(slave, EC_TIMEOUTMON)) {
-              ec_slave[slave].islost = FALSE;
+              ec_slave[slave].islost = false;
               printf("MESSAGE : slave %d reconfigured\n", slave);
             }
           } else if (!ec_slave[slave].islost) {
             /* re-check state */
             ec_statecheck(slave, EC_STATE_OPERATIONAL, EC_TIMEOUTRET);
             if (ec_slave[slave].state == EC_STATE_NONE) {
-              ec_slave[slave].islost = TRUE;
+              ec_slave[slave].islost = true;
               printf("ERROR : slave %d lost\n", slave);
             }
           }
@@ -385,11 +373,11 @@ OSAL_THREAD_FUNC SynapticonSystemInterface::ecatCheck(void * /*ptr*/) {
         if (ec_slave[slave].islost) {
           if (ec_slave[slave].state == EC_STATE_NONE) {
             if (ec_recover_slave(slave, EC_TIMEOUTMON)) {
-              ec_slave[slave].islost = FALSE;
+              ec_slave[slave].islost = false;
               printf("MESSAGE : slave %d recovered\n", slave);
             }
           } else {
-            ec_slave[slave].islost = FALSE;
+            ec_slave[slave].islost = false;
             printf("MESSAGE : slave %d found\n", slave);
           }
         }
