@@ -119,32 +119,29 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
   in_operation_ = true;
 
   // Connect struct pointers to I/O
-  // for (size_t joint_idx = 0; joint_idx < info_.joints.size(); ++joint_idx) {
-  //   in_somanet_1_.push_back((InSomanet50t *)ec_slave[joint_idx].inputs);
-  //   out_somanet_1_.push_back((OutSomanet50t *)ec_slave[joint_idx].outputs);
-  // }
-  in_somanet_1_ = std::vector<InSomanet50t *>{(InSomanet50t*)ec_slave[0].inputs};
-  out_somanet_1_ = std::vector<OutSomanet50t *>{(OutSomanet50t*)ec_slave[0].outputs};
+  for (size_t joint_idx = 0; joint_idx < info_.joints.size(); ++joint_idx) {
+    in_somanet_1_.push_back((InSomanet50t *)ec_slave[joint_idx].inputs);
+    out_somanet_1_.push_back((OutSomanet50t *)ec_slave[joint_idx].outputs);
+  }
 
-  // // Read encoder resolution
-  // uint8_t encoder_source;
-  // int size = sizeof(encoder_source);
-  // ec_SDOread(1, 0x2012, 0x09, false, &size, &encoder_source, EC_TIMEOUTRXM);
-  // size = sizeof(encoder_resolution_);
-  // if (encoder_source == 1)
-  // {
-  //   ec_SDOread(1, 0x2110, 0x03, false, &size, &encoder_resolution_, EC_TIMEOUTRXM);
-  // }
-  // else if (encoder_source == 2)
-  // {
-  //   ec_SDOread(1, 0x2112, 0x03, false, &size, &encoder_resolution_, EC_TIMEOUTRXM);
-  // }
-  // else
-  // {
-  //     std::cerr << "No encoder configured for position control. Terminating the program" << std::endl;
-  //     return hardware_interface::CallbackReturn::ERROR;
-  // }
-  // std:: cerr << "Encoder " << encoder_source << " is used for position control. Resolution = " << encoder_resolution_ << std::endl;
+  // Read encoder resolution
+  uint8_t encoder_source;
+  int size = sizeof(encoder_source);
+  ec_SDOread(1, 0x2012, 0x09, false, &size, &encoder_source, EC_TIMEOUTRXM);
+  size = sizeof(encoder_resolution_);
+  if (encoder_source == 1)
+  {
+    ec_SDOread(1, 0x2110, 0x03, false, &size, &encoder_resolution_, EC_TIMEOUTRXM);
+  }
+  else if (encoder_source == 2)
+  {
+    ec_SDOread(1, 0x2112, 0x03, false, &size, &encoder_resolution_, EC_TIMEOUTRXM);
+  }
+  else
+  {
+      std::cerr << "No encoder configured for position control. Terminating the program" << std::endl;
+      return hardware_interface::CallbackReturn::ERROR;
+  }
 
   // Step through state transitions until Operational
   size_t cmd_count = 0;
@@ -194,13 +191,13 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
           }
 
           // printf("Processdata cycle %4d , WKC %d ,", i, wkc);
-          printf(" Statusword: %X ,", in_somanet_1_[0]->Statusword);
+          // printf(" Statusword: %X ,", in_somanet_1_[0]->Statusword);
           // printf(" Op Mode Display: %d ,", in_somanet_1->OpModeDisplay);
           printf(" ActualPos: %" PRId32 " ,", in_somanet_1_[0]->PositionValue);
-          printf(" ActualVel: %" PRId32 " ,", in_somanet_1_[0]->VelocityValue);
-          printf(" DemandVel: %" PRId32 " ,", in_somanet_1_[0]->VelocityDemandValue);
-          printf(" ActualTorque: %" PRId32 " ,", in_somanet_1_[0]->TorqueValue);
-          printf(" DemandTorque: %" PRId32 " ,", in_somanet_1_[0]->TorqueDemand);
+          // printf(" ActualVel: %" PRId32 " ,", in_somanet_1_[0]->VelocityValue);
+          // printf(" DemandVel: %" PRId32 " ,", in_somanet_1_[0]->VelocityDemandValue);
+          // printf(" ActualTorque: %" PRId32 " ,", in_somanet_1_[0]->TorqueValue);
+          // printf(" DemandTorque: %" PRId32 " ,", in_somanet_1_[0]->TorqueDemand);
           printf("\n");
 
           // printf(" T:%" PRId64 "\r", ec_DCtime);
