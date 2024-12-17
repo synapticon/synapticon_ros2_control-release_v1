@@ -144,9 +144,9 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
   }
 
   // Step through state transitions until Operational
-  size_t cmd_count = 0;
-  // TODO: break out of this loop when operational
-  for (size_t i = 1; i <= 1000; i++)
+  bool is_first_iteration = true;
+  bool in_normal_op_mode = false;
+  for (size_t i = 1; (i <= 1000) && !in_normal_op_mode; ++i)
   {
     ec_send_processdata();
     wkc_ = ec_receive_processdata(EC_TIMEOUTRET);
@@ -155,14 +155,13 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
     {
       if (wkc_ >= expected_wkc_)
       {
-          ++cmd_count;
           // Profile torque mode
-          // TODO: move this into for-loop condition
           // TODO: only do this if the control mode is Effort
-          // TODO: move this into prepare_command_mode_switch?
-          if (cmd_count == 1)
+          // TODO: move this into a function, call it during prepare_command_mode_switch()?
+          if (is_first_iteration)
           {
             out_somanet_1_[joint_idx]->OpMode = 4;
+            is_first_iteration = false;
           }
 
           // Fault reset: Fault -> Switch on disabled, if the drive is in fault state
@@ -187,24 +186,14 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
           else if ((in_somanet_1_[joint_idx]->Statusword & 0b0000000001101111) == 0b0000000000100011)
           {
             out_somanet_1_[joint_idx]->Controlword = 0b00001111;
-            std::cerr << "Reached the operational state!" << std::endl;
+            in_normal_op_mode = true;
           }
 
-          // printf("Processdata cycle %4d , WKC %d ,", i, wkc);
-          // printf(" Statusword: %X ,", in_somanet_1_[0]->Statusword);
-          // printf(" Op Mode Display: %d ,", in_somanet_1->OpModeDisplay);
-          printf(" ActualPos: %" PRId32 " ,", in_somanet_1_[0]->PositionValue);
-          // printf(" ActualVel: %" PRId32 " ,", in_somanet_1_[0]->VelocityValue);
-          // printf(" DemandVel: %" PRId32 " ,", in_somanet_1_[0]->VelocityDemandValue);
-          // printf(" ActualTorque: %" PRId32 " ,", in_somanet_1_[0]->TorqueValue);
-          // printf(" DemandTorque: %" PRId32 " ,", in_somanet_1_[0]->TorqueDemand);
-          printf("\n");
-
-          // printf(" T:%" PRId64 "\r", ec_DCtime);
           needlf_ = true;
       }
     }
-    osal_usleep(5000);
+    // 100 Hz
+    osal_usleep(10000);
   }
 
   return hardware_interface::CallbackReturn::SUCCESS;
