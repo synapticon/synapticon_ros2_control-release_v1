@@ -71,12 +71,30 @@ Start the service:
 
 `sudo systemctl restart ros2_control_node.service`
 
-Check service availability:
+Check service status and see the ROS console logging:
 
 `sudo systemctl status ros2_control_node.service`
 
 #### Launching the ros2_control example ####
 
 `sudo systemctl restart ros2_control_node.service`
+
+`ros2 launch synapticon_ros2_control single_dof.launch.py`
+
+Stop the `ros2_control_node` with:
+
+`sudo systemctl stop ros2_control_node.service`
+
+Alternative- launch as sudo. Open 2 terminals and do sourcing for each of them like so:
+
+`sudo -i`
+
+`source /home/your_user/.bashrc`
+
+`source /your/workspace/install/setup.bash`
+
+Then do the launching:
+
+`ros2 launch synapticon_ros2_control elevated_permissions.launch.py`
 
 `ros2 launch synapticon_ros2_control single_dof.launch.py`

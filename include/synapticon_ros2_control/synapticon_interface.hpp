@@ -82,8 +82,7 @@ private:
   // TODO: enable position commands
   enum control_level_t : std::uint8_t {
     UNDEFINED = 0,
-    VELOCITY = 1,
-    EFFORT = 2, // aka torque
+    EFFORT = 1, // aka torque
   };
 
   // Active control mode for each actuator
@@ -129,6 +128,8 @@ private:
 
   std::vector<InSomanet50t *> in_somanet_1_;
   std::vector<OutSomanet50t *> out_somanet_1_;
+
+  uint32_t encoder_resolution_;
 
   // For coordination between threads
   std::atomic<bool> in_operation_;
