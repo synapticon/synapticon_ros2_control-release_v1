@@ -2,7 +2,9 @@
 
 #include <atomic>
 #include <memory>
+#include <optional>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <hardware_interface/handle.hpp>
@@ -67,9 +69,12 @@ private:
   OSAL_THREAD_FUNC ecatCheck(void *ptr);
 
   /**
-   * @brief Step through the states to get to Operational mode
+   * @brief Somanet control loop runs in a dedicated thread
+   * This steps through several states to get to Operational, if needed
    */
-  void stepThroughSomanetStates();
+  void somanetCyclicLoop(std::atomic<bool>& in_normal_op_mode_);
+
+  std::optional<std::thread> somanet_control_thread_;
 
   // Objects for logging
   std::shared_ptr<rclcpp::Logger> logger_;
@@ -132,6 +137,7 @@ private:
   } OutSomanet50t;
 
   std::vector<InSomanet50t *> in_somanet_1_;
+  std::mutex in_somanet_mtx_;
   std::vector<OutSomanet50t *> out_somanet_1_;
 
   uint32_t encoder_resolution_;
@@ -141,6 +147,7 @@ private:
   volatile std::atomic<int> wkc_;
   std::atomic<int> expected_wkc_;
   std::atomic<bool> needlf_;
+  std::atomic<bool> in_normal_op_mode_;
 };
 
 } // namespace synapticon_ros2_control
