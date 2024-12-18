@@ -66,6 +66,11 @@ private:
    */
   OSAL_THREAD_FUNC ecatCheck(void *ptr);
 
+  /**
+   * @brief Step through the states to get to Operational mode
+   */
+  void stepThroughSomanetStates();
+
   // Objects for logging
   std::shared_ptr<rclcpp::Logger> logger_;
   rclcpp::Clock::SharedPtr clock_;

@@ -85,7 +85,9 @@ Stop the `ros2_control_node` with:
 
 `sudo systemctl stop ros2_control_node.service`
 
-Alternatively, launch everything as sudo. Open 2 terminals and do sourcing for each of them like so:
+Alternatively, launch everything as sudo. This is not recommended but it prints more nicely, for debugging.
+
+Open 2 terminals and do sourcing for each of them like so:
 
 `sudo -i`
 
