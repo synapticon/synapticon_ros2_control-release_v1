@@ -72,10 +72,10 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
     }
   }
 
-  // // A thread to handle ethercat errors
-  // osal_thread_create(&ecat_error_thread_, 128000,
-  //                    (void *)&SynapticonSystemInterface::ecatCheck,
-  //                    (void *)&ctime);
+  // A thread to handle ethercat errors
+  osal_thread_create(&ecat_error_thread_, 128000,
+                     (void *)&SynapticonSystemInterface::ecatCheck,
+                     (void *)&ctime);
 
   // Ethercat initialization
   int ec_init_status = ec_init(ETHERCAT_INTERFACE);
@@ -96,14 +96,13 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
   ec_statecheck(0, EC_STATE_SAFE_OP, EC_TIMEOUTSTATE * 4);
   // Request operational state for all slaves
   expected_wkc_ = (ec_group[0].outputsWKC * 2) + ec_group[0].inputsWKC;
+  // TODO: does this need to be vectorized?
   ec_slave[0].state = EC_STATE_OPERATIONAL;
   // send one valid process data to make outputs in slaves happy
   ec_send_processdata();
   ec_receive_processdata(EC_TIMEOUTRET);
   // request OP state for all slaves
   ec_writestate(0);
-  ec_send_processdata();
-  ec_receive_processdata(EC_TIMEOUTRET);
   size_t chk = 200;
 
   // wait for all slaves to reach OP state
@@ -119,32 +118,29 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
     return hardware_interface::CallbackReturn::ERROR;
   }
 
-  // A flag to ecat_error_check_ thread
-  in_operation_ = true;
-
   // Connect struct pointers to I/O
   for (size_t joint_idx = 0; joint_idx < info_.joints.size(); ++joint_idx) {
     in_somanet_1_.push_back((InSomanet50t *)ec_slave[joint_idx].inputs);
     out_somanet_1_.push_back((OutSomanet50t *)ec_slave[joint_idx].outputs);
   }
 
-  // Read encoder resolution
-  uint8_t encoder_source;
-  int size = sizeof(encoder_source);
-  ec_SDOread(1, 0x2012, 0x09, false, &size, &encoder_source, EC_TIMEOUTRXM);
-  size = sizeof(encoder_resolution_);
-  if (encoder_source == 1) {
-    ec_SDOread(1, 0x2110, 0x03, false, &size, &encoder_resolution_,
-               EC_TIMEOUTRXM);
-  } else if (encoder_source == 2) {
-    ec_SDOread(1, 0x2112, 0x03, false, &size, &encoder_resolution_,
-               EC_TIMEOUTRXM);
-  } else {
-    std::cerr
-        << "No encoder configured for position control. Terminating the program"
-        << std::endl;
-    return hardware_interface::CallbackReturn::ERROR;
-  }
+  // // Read encoder resolution
+  // uint8_t encoder_source;
+  // int size = sizeof(encoder_source);
+  // ec_SDOread(1, 0x2012, 0x09, false, &size, &encoder_source, EC_TIMEOUTRXM);
+  // size = sizeof(encoder_resolution_);
+  // if (encoder_source == 1) {
+  //   ec_SDOread(1, 0x2110, 0x03, false, &size, &encoder_resolution_,
+  //              EC_TIMEOUTRXM);
+  // } else if (encoder_source == 2) {
+  //   ec_SDOread(1, 0x2112, 0x03, false, &size, &encoder_resolution_,
+  //              EC_TIMEOUTRXM);
+  // } else {
+  //   std::cerr
+  //       << "No encoder configured for position control. Terminating the program"
+  //       << std::endl;
+  //   return hardware_interface::CallbackReturn::ERROR;
+  // }
 
   return hardware_interface::CallbackReturn::SUCCESS;
 }
@@ -333,7 +329,7 @@ SynapticonSystemInterface::export_command_interfaces() {
 
 SynapticonSystemInterface::~SynapticonSystemInterface() {
   // A flag to ecat_error_check_ thread
-  in_operation_ = false;
+  in_normal_op_mode_ = false;
 
   // Close the ethercat connection
   ec_close();
@@ -344,7 +340,7 @@ OSAL_THREAD_FUNC SynapticonSystemInterface::ecatCheck(void * /*ptr*/) {
   uint8 currentgroup = 0;
 
   while (1) {
-    if (in_operation_ &&
+    if (in_normal_op_mode_ &&
         ((wkc_ < expected_wkc_) || ec_group[currentgroup].docheckstate)) {
       if (needlf_) {
         needlf_ = false;
@@ -406,58 +402,70 @@ void SynapticonSystemInterface::somanetCyclicLoop(std::atomic<bool>& in_normal_o
   while (1)
   {
     {
-      std::lock_guard<std::mutex> lock_in(in_somanet_mtx_);
+      // std::lock_guard<std::mutex> lock_in(in_somanet_mtx_);
 
       ec_send_processdata();
       wkc_ = ec_receive_processdata(EC_TIMEOUTRET);
 
-      for (size_t joint_idx = 0; joint_idx < info_.joints.size(); ++joint_idx)
+      if (wkc_ >= expected_wkc_)
       {
-        // Fault reset: Fault -> Swith on disabled, if the drive is in fault state
-        if ((in_somanet_1_[joint_idx]->Statusword & 0b0000000001001111) == 0b0000000000001000)
-            out_somanet_1_[joint_idx]->Controlword = 0b10000000;
-
-        // Shutdown: Switch on disabled -> Ready to switch on
-        else if ((in_somanet_1_[joint_idx]->Statusword & 0b0000000001001111) == 0b0000000001000000)
-            out_somanet_1_[joint_idx]->Controlword = 0b00000110;
-
-        // Switch on: Ready to switch on -> Switched on
-        else if ((in_somanet_1_[joint_idx]->Statusword & 0b0000000001101111) == 0b0000000000100001)
-            out_somanet_1_[joint_idx]->Controlword = 0b00000111;
-
-        // Enable operation: Switched on -> Operation enabled
-        else if ((in_somanet_1_[joint_idx]->Statusword & 0b0000000001101111) == 0b0000000000100011)
-            out_somanet_1_[joint_idx]->Controlword = 0b00001111;
-
-        // Sending torque command
-        else if ((in_somanet_1_[joint_idx]->Statusword & 0b0000000001101111) == 0b0000000000100111)
+        for (size_t joint_idx = 0; joint_idx < info_.joints.size(); ++joint_idx)
         {
-          in_normal_op_mode = true;
-          if (control_level_[joint_idx] == control_level_t::EFFORT)
+          // Profile torque mode
+          // TODO: other modes
+          if (is_first_iteration)
           {
-            // TODO: lock hw_commands_efforts_[joint_idx] with a mutex and use that
-            out_somanet_1_[joint_idx]->TargetTorque = 0;
+            is_first_iteration = false;
+            out_somanet_1_[joint_idx]->OpMode = 4;
           }
+
+          // Fault reset: Fault -> Swith on disabled, if the drive is in fault state
+          if ((in_somanet_1_[joint_idx]->Statusword & 0b0000000001001111) == 0b0000000000001000)
+              out_somanet_1_[joint_idx]->Controlword = 0b10000000;
+
+          // Shutdown: Switch on disabled -> Ready to switch on
+          else if ((in_somanet_1_[joint_idx]->Statusword & 0b0000000001001111) == 0b0000000001000000)
+              out_somanet_1_[joint_idx]->Controlword = 0b00000110;
+
+          // Switch on: Ready to switch on -> Switched on
+          else if ((in_somanet_1_[joint_idx]->Statusword & 0b0000000001101111) == 0b0000000000100001)
+              out_somanet_1_[joint_idx]->Controlword = 0b00000111;
+
+          // Enable operation: Switched on -> Operation enabled
+          else if ((in_somanet_1_[joint_idx]->Statusword & 0b0000000001101111) == 0b0000000000100011)
+              out_somanet_1_[joint_idx]->Controlword = 0b00001111;
+
+          // Sending torque command
+          else if ((in_somanet_1_[joint_idx]->Statusword & 0b0000000001101111) == 0b0000000000100111)
+          {
+            in_normal_op_mode = true;
+            if (control_level_[joint_idx] == control_level_t::EFFORT)
+            {
+              // TODO: lock hw_commands_efforts_[joint_idx] with a mutex and use that
+              out_somanet_1_[joint_idx]->TargetTorque = 0;
+            }
+          }
+
+          // printf(" Statusword 0: %X ,", in_somanet_1_[0]->Statusword);
+          // printf(" Op Mode Display 0: %d ,", in_somanet_1_[0]->OpModeDisplay);
+          // printf(" ActualPos 0: %" PRId32 " ,", in_somanet_1_[0]->PositionValue);
+          // printf(" ActualVel 0: %" PRId32 " ,", in_somanet_1_[0]->VelocityValue);
+          // printf(" DemandVel 0: %" PRId32 " ,",
+          // in_somanet_1_[0]->VelocityDemandValue); printf(" ActualTorque 0: %" PRId32
+          // " ,", in_somanet_1_[0]->TorqueValue); printf(" DemandTorque 0: %" PRId32 "
+          // ,", in_somanet_1_[0]->TorqueDemand);
+
+          // std::cerr << (int32_t)(in_somanet_1_[0]->PositionValue *
+          // (double)(DEG_TO_RAD * 360.0 / encoder_resolution_)) << std::endl;
+          // std::cerr << in_somanet_1_[0]->PositionValue << std::endl;
+          printf(" ActualPos 0: %" PRId32 "\n", in_somanet_1_[0]->PositionValue);
+          // printf(" ActualTorque 0: %" PRId32 "\n", in_somanet_1_[0]->TorqueValue);
         }
 
-        // printf(" Statusword 0: %X ,", in_somanet_1_[0]->Statusword);
-        // printf(" Op Mode Display 0: %d ,", in_somanet_1_[0]->OpModeDisplay);
-        // printf(" ActualPos 0: %" PRId32 " ,", in_somanet_1_[0]->PositionValue);
-        // printf(" ActualVel 0: %" PRId32 " ,", in_somanet_1_[0]->VelocityValue);
-        // printf(" DemandVel 0: %" PRId32 " ,",
-        // in_somanet_1_[0]->VelocityDemandValue); printf(" ActualTorque 0: %" PRId32
-        // " ,", in_somanet_1_[0]->TorqueValue); printf(" DemandTorque 0: %" PRId32 "
-        // ,", in_somanet_1_[0]->TorqueDemand);
-
-        // std::cerr << (int32_t)(in_somanet_1_[0]->PositionValue *
-        // (double)(DEG_TO_RAD * 360.0 / encoder_resolution_)) << std::endl;
-        // std::cerr << in_somanet_1_[0]->PositionValue << std::endl;
-        printf(" ActualPos 0: %" PRId32 "\n", in_somanet_1_[0]->PositionValue);
-        // printf(" ActualTorque 0: %" PRId32 "\n", in_somanet_1_[0]->TorqueValue);
+        needlf_ = true;
       }
     }
 
-    needlf_ = true;
     // TODO: parameterize
     osal_usleep(5000);
   }
