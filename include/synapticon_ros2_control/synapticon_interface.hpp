@@ -115,6 +115,8 @@ private:
 
   std::optional<std::thread> somanet_control_thread_;
 
+  size_t num_joints_;
+
   // Objects for logging
   std::shared_ptr<rclcpp::Logger> logger_;
   rclcpp::Clock::SharedPtr clock_;
