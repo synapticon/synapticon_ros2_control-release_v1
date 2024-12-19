@@ -12,6 +12,7 @@ using namespace std::chrono_literals;
 namespace synapticon_ros2_control {
 namespace {
 constexpr char LOG_NAME[] = "synapticon_ros2_control";
+// TODO: parameterize this
 constexpr char ETHERCAT_INTERFACE[] = "eno0";
 constexpr double DEG_TO_RAD = 0.0174533;
 } // namespace
@@ -39,6 +40,17 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
   hw_commands_efforts_.resize(info_.joints.size(),
                               std::numeric_limits<double>::quiet_NaN());
   control_level_.resize(info_.joints.size(), control_level_t::UNDEFINED);
+  // Atomic vectors are difficult to initialize
+  {
+    // Create a vector of std::atomic<double>, initializing all to 0.0
+    auto threadsafe_commands_efforts = std::make_unique<std::vector<std::atomic<double>>>(info_.joints.size());
+
+    for (auto& effort : *threadsafe_commands_efforts) {
+        effort.store(0.0, std::memory_order_relaxed); // Using relaxed as we're just initializing
+    }
+    // Move the unique_ptr to the member variable
+    threadsafe_commands_efforts_ = std::move(threadsafe_commands_efforts);
+  }
 
   for (const hardware_interface::ComponentInfo &joint : info_.joints) {
     if (!(joint.command_interfaces[0].name ==
@@ -91,13 +103,16 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
     ec_close();
     return hardware_interface::CallbackReturn::ERROR;
   }
+
   ec_config_map(&io_map_);
   ec_configdc();
   ec_statecheck(0, EC_STATE_SAFE_OP, EC_TIMEOUTSTATE * 4);
   // Request operational state for all slaves
   expected_wkc_ = (ec_group[0].outputsWKC * 2) + ec_group[0].inputsWKC;
-  // TODO: does this need to be vectorized?
-  ec_slave[0].state = EC_STATE_OPERATIONAL;
+  for (size_t slave_id = 0; slave_id < ec_slavecount; ++slave_id)
+  {
+    ec_slave[slave_id].state = EC_STATE_OPERATIONAL;
+  }
   // send one valid process data to make outputs in slaves happy
   ec_send_processdata();
   ec_receive_processdata(EC_TIMEOUTRET);
@@ -141,6 +156,13 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
   //       << std::endl;
   //   return hardware_interface::CallbackReturn::ERROR;
   // }
+
+  // Start the control loop, wait for it to reach normal operation mode
+  somanet_control_thread_ = std::thread(&SynapticonSystemInterface::somanetCyclicLoop, this, std::ref(in_normal_op_mode_));
+  while (!in_normal_op_mode_)
+  {
+    std::this_thread::sleep_for(10ms);
+  }
 
   return hardware_interface::CallbackReturn::SUCCESS;
 }
@@ -211,19 +233,9 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_activate(
     if (std::isnan(hw_states_efforts_[i])) {
       hw_states_efforts_[i] = 0;
     }
-    if (std::isnan(hw_commands_velocities_[i])) {
-      hw_commands_velocities_[i] = 0;
-    }
-    if (std::isnan(hw_commands_efforts_[i])) {
-      hw_commands_efforts_[i] = 0;
-    }
-  }
 
-  // Start the control loop, wait for it to reach normal operation mode
-  somanet_control_thread_ = std::thread(&SynapticonSystemInterface::somanetCyclicLoop, this, std::ref(in_normal_op_mode_));
-  while (!in_normal_op_mode_)
-  {
-    std::this_thread::sleep_for(10ms);
+    hw_commands_velocities_[i] = 0;
+    hw_commands_efforts_[i] = 0;
   }
 
   RCLCPP_INFO(get_logger(), "System successfully activated! Control level: %u",
@@ -251,28 +263,28 @@ hardware_interface::return_type
 SynapticonSystemInterface::read(const rclcpp::Time & /*time*/,
                                 const rclcpp::Duration & /*period*/) {
 
-  // for (std::size_t i = 0; i < hw_states_positions_.size(); i++) {
-  //   switch (control_level_[i]) {
-  //   case control_level_t::UNDEFINED:
-  //     // RCLCPP_INFO(get_logger(), "Nothing is using the hardware interface!");
-  //     return hardware_interface::return_type::OK;
-  //   // TODO: add additional control modes
-  //   case control_level_t::EFFORT:
-  //     {
-  //       std::lock_guard<std::mutex> lock(in_somanet_mtx_);
-  //       // InSomanet50t doesn't include acceleration
-  //       hw_states_accelerations_[i] = 0;
-  //       hw_states_velocities_[i] = in_somanet_1_[i]->VelocityValue;
-  //       hw_states_positions_[i] = in_somanet_1_[i]->PositionValue;
-  //       hw_states_efforts_[i] = in_somanet_1_[i]->TorqueValue;
-  //       break;
-  //     }
-  //   default:
-  //     // This should never happen
-  //     RCLCPP_FATAL(get_logger(), "Unexpected control_level_t within read()");
-  //     return hardware_interface::return_type::ERROR;
-  //   }
-  // }
+  for (std::size_t i = 0; i < hw_states_positions_.size(); i++) {
+    switch (control_level_[i]) {
+    case control_level_t::UNDEFINED:
+      // RCLCPP_INFO(get_logger(), "Nothing is using the hardware interface!");
+      return hardware_interface::return_type::OK;
+    // TODO: add additional control modes
+    case control_level_t::EFFORT:
+      {
+        std::lock_guard<std::mutex> lock(in_somanet_mtx_);
+        // InSomanet50t doesn't include acceleration
+        hw_states_accelerations_[i] = 0;
+        hw_states_velocities_[i] = in_somanet_1_[i]->VelocityValue;
+        hw_states_positions_[i] = in_somanet_1_[i]->PositionValue;
+        hw_states_efforts_[i] = in_somanet_1_[i]->TorqueValue;
+        break;
+      }
+    default:
+      // This should never happen
+      RCLCPP_FATAL(get_logger(), "Unexpected control_level_t within read()");
+      return hardware_interface::return_type::ERROR;
+    }
+  }
 
   return hardware_interface::return_type::OK;
 }
@@ -398,93 +410,68 @@ OSAL_THREAD_FUNC SynapticonSystemInterface::ecatCheck(void * /*ptr*/) {
 
 void SynapticonSystemInterface::somanetCyclicLoop(std::atomic<bool>& in_normal_op_mode)
 {
-  bool is_first_iteration = true;
-  while (1)
+  bool first_iteration = true;
+
+  while (rclcpp::ok())
   {
-    if (ec_slave[0].state == EC_STATE_OPERATIONAL)
     {
+      std::lock_guard<std::mutex> lock(in_somanet_mtx_);
+      ec_send_processdata();
+      wkc_ = ec_receive_processdata(EC_TIMEOUTRET);
+
+      // TODO: vectorize all of this
+      if (wkc_ >= expected_wkc_)
       {
-        // std::lock_guard<std::mutex> lock_in(in_somanet_mtx_);
-
-        ec_send_processdata();
-        wkc_ = ec_receive_processdata(EC_TIMEOUTRET);
-
-        if (wkc_ >= expected_wkc_)
+        // Profile torque mode
+        if (first_iteration)
         {
-          for (size_t joint_idx = 0; joint_idx < info_.joints.size(); ++joint_idx)
-          {
-            // Profile torque mode
-            // TODO: other modes
-            if (is_first_iteration)
-            {
-              is_first_iteration = false;
-              out_somanet_1_[joint_idx]->OpMode = 4;
-            }
-
-            // Fault reset: Fault -> Swith on disabled, if the drive is in fault state
-            if ((in_somanet_1_[joint_idx]->Statusword & 0b0000000001001111) == 0b0000000000001000)
-                out_somanet_1_[joint_idx]->Controlword = 0b10000000;
-
-            // Shutdown: Switch on disabled -> Ready to switch on
-            else if ((in_somanet_1_[joint_idx]->Statusword & 0b0000000001001111) == 0b0000000001000000)
-                out_somanet_1_[joint_idx]->Controlword = 0b00000110;
-
-            // Switch on: Ready to switch on -> Switched on
-            else if ((in_somanet_1_[joint_idx]->Statusword & 0b0000000001101111) == 0b0000000000100001)
-                out_somanet_1_[joint_idx]->Controlword = 0b00000111;
-
-            // Enable operation: Switched on -> Operation enabled
-            else if ((in_somanet_1_[joint_idx]->Statusword & 0b0000000001101111) == 0b0000000000100011)
-                out_somanet_1_[joint_idx]->Controlword = 0b00001111;
-
-            // Sending torque command
-            else if ((in_somanet_1_[joint_idx]->Statusword & 0b0000000001101111) == 0b0000000000100111)
-            {
-              in_normal_op_mode = true;
-              if (control_level_[joint_idx] == control_level_t::EFFORT)
-              {
-                // TODO: lock hw_commands_efforts_[joint_idx] with a mutex and use that
-                out_somanet_1_[joint_idx]->TargetTorque = 0;
-              }
-            }
-
-            // printf(" Statusword 0: %X ,", in_somanet_1_[0]->Statusword);
-            // printf(" Op Mode Display 0: %d ,", in_somanet_1_[0]->OpModeDisplay);
-            // printf(" ActualPos 0: %" PRId32 " ,", in_somanet_1_[0]->PositionValue);
-            // printf(" ActualVel 0: %" PRId32 " ,", in_somanet_1_[0]->VelocityValue);
-            // printf(" DemandVel 0: %" PRId32 " ,",
-            // in_somanet_1_[0]->VelocityDemandValue); printf(" ActualTorque 0: %" PRId32
-            // " ,", in_somanet_1_[0]->TorqueValue); printf(" DemandTorque 0: %" PRId32 "
-            // ,", in_somanet_1_[0]->TorqueDemand);
-
-            // std::cerr << (int32_t)(in_somanet_1_[0]->PositionValue *
-            // (double)(DEG_TO_RAD * 360.0 / encoder_resolution_)) << std::endl;
-            // std::cerr << in_somanet_1_[0]->PositionValue << std::endl;
-            printf(" ActualPos 0: %" PRId32 "\n", in_somanet_1_[0]->PositionValue);
-            // printf(" ActualTorque 0: %" PRId32 "\n", in_somanet_1_[0]->TorqueValue);
-          }
-
-          needlf_ = true;
+          out_somanet_1_[0]->OpMode = 4;
+          first_iteration = false;
         }
+
+        // Fault reset: Fault -> Swith on disabled, if the drive is in fault state
+        if ((in_somanet_1_[0]->Statusword & 0b0000000001001111) == 0b0000000000001000)
+            out_somanet_1_[0]->Controlword = 0b10000000;
+
+        // Shutdown: Switch on disabled -> Ready to switch on
+        else if ((in_somanet_1_[0]->Statusword & 0b0000000001001111) == 0b0000000001000000)
+            out_somanet_1_[0]->Controlword = 0b00000110;
+
+        // Switch on: Ready to switch on -> Switched on
+        else if ((in_somanet_1_[0]->Statusword & 0b0000000001101111) == 0b0000000000100001)
+            out_somanet_1_[0]->Controlword = 0b00000111;
+
+        // Enable operation: Switched on -> Operation enabled
+        else if ((in_somanet_1_[0]->Statusword & 0b0000000001101111) == 0b0000000000100011)
+            out_somanet_1_[0]->Controlword = 0b00001111;
+
+        // Sending torque command
+        else if ((in_somanet_1_[0]->Statusword & 0b0000000001101111) == 0b0000000000100111)
+        {
+          in_normal_op_mode = true;
+          if (control_level_[0] == control_level_t::EFFORT)
+          {
+            out_somanet_1_[0]->TargetTorque = threadsafe_commands_efforts_->at(0);
+          }
+        }
+
+        // // printf("Processdata cycle %4d , WKC %d ,", i, wkc);
+        // printf(" Statusword: %X ,", in_somanet_1->Statusword);
+        // // printf(" Op Mode Display: %d ,", in_somanet_1->OpModeDisplay);
+        // printf(" ActualPos: %" PRId32 " ,", in_somanet_1->PositionValue);
+        // printf(" ActualVel: %" PRId32 " ,", in_somanet_1->VelocityValue);
+        // printf(" DemandVel: %" PRId32 " ,", in_somanet_1->VelocityDemandValue);
+        // printf(" ActualTorque: %" PRId32 " ,", in_somanet_1->TorqueValue);
+        // printf(" DemandTorque: %" PRId32 " ,", in_somanet_1->TorqueDemand);
+        // printf("\n");
+
+        printf(" ActualPos: %" PRId32 " \n", in_somanet_1_[0]->PositionValue);
+
+        // printf(" T:%" PRId64 "\r", ec_DCtime);
+        needlf_ = true;
       }
-
-      // TODO: parameterize
-      osal_usleep(5000);
-    }
-    else
-    {
-        std::cerr << "Not all slaves reached operational state." << std::endl;
-        ec_readstate();
-        for (int i = 1; i <= ec_slavecount; i++)
-        {
-          if (ec_slave[i].state != EC_STATE_OPERATIONAL)
-          {
-            printf("Slave %d State=0x%2.2x StatusCode=0x%4.4x : %s\n",
-                   i, ec_slave[i].state, ec_slave[i].ALstatuscode, ec_ALstatuscode2string(ec_slave[i].ALstatuscode));
-          }
-        }
-    }
-    ec_close();
+    } // scope of in_somanet_ mutex lock
+    osal_usleep(5000);
   }
 }
 

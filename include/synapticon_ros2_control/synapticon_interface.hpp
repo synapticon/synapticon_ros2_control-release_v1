@@ -21,6 +21,45 @@
 
 namespace synapticon_ros2_control {
 
+namespace
+{
+#pragma pack(1)
+  // Somanet structs
+  typedef struct {
+    uint16_t Statusword;
+    int8_t OpModeDisplay;
+    int32_t PositionValue;
+    int32_t VelocityValue;
+    int16_t TorqueValue;
+    uint16_t AnalogInput1;
+    uint16_t AnalogInput2;
+    uint16_t AnalogInput3;
+    uint16_t AnalogInput4;
+    uint32_t TuningStatus;
+    uint32_t DigitalInputs;
+    uint32_t UserMISO;
+    uint32_t Timestamp;
+    int32_t PositionDemandInternalValue;
+    int32_t VelocityDemandValue;
+    int16_t TorqueDemand;
+  } InSomanet50t;
+
+  typedef struct {
+    uint16_t Controlword;
+    int8_t OpMode;
+    int16_t TargetTorque;
+    int32_t TargetPosition;
+    int32_t TargetVelocity;
+    int16_t TorqueOffset;
+    int32_t TuningCommand;
+    int32_t PhysicalOutputs;
+    int32_t BitMask;
+    int32_t UserMOSI;
+    int32_t VelocityOffset;
+  } OutSomanet50t;
+#pragma pack()
+}
+
 class SynapticonSystemInterface : public hardware_interface::SystemInterface {
 public:
   RCLCPP_SHARED_PTR_DEFINITIONS(SynapticonSystemInterface)
@@ -87,6 +126,8 @@ private:
   std::vector<double> hw_states_velocities_;
   std::vector<double> hw_states_accelerations_;
   std::vector<double> hw_states_efforts_;
+  // Threadsafe vectors to share commands with somanet control loop thread
+  std::unique_ptr<std::vector<std::atomic<double>>> threadsafe_commands_efforts_;
 
   // Enum defining current control level
   // TODO: enable position commands
@@ -102,40 +143,6 @@ private:
   OSAL_THREAD_HANDLE ecat_error_thread_;
   char io_map_[4096];
 
-  // Somanet structs
-  typedef struct {
-    uint16_t Statusword;
-    int8_t OpModeDisplay;
-    int32_t PositionValue;
-    int32_t VelocityValue;
-    int16_t TorqueValue;
-    uint16_t AnalogInput1;
-    uint16_t AnalogInput2;
-    uint16_t AnalogInput3;
-    uint16_t AnalogInput4;
-    uint32_t TuningStatus;
-    uint32_t DigitalInputs;
-    uint32_t UserMISO;
-    uint32_t Timestamp;
-    int32_t PositionDemandInternalValue;
-    int32_t VelocityDemandValue;
-    int16_t TorqueDemand;
-  } InSomanet50t;
-
-  typedef struct {
-    uint16_t Controlword;
-    int8_t OpMode;
-    int16_t TargetTorque;
-    int32_t TargetPosition;
-    int32_t TargetVelocity;
-    int16_t TorqueOffset;
-    int32_t TuningCommand;
-    int32_t PhysicalOutputs;
-    int32_t BitMask;
-    int32_t UserMOSI;
-    int32_t VelocityOffset;
-  } OutSomanet50t;
-
   std::vector<InSomanet50t *> in_somanet_1_;
   std::mutex in_somanet_mtx_;
   std::vector<OutSomanet50t *> out_somanet_1_;
@@ -145,8 +152,8 @@ private:
   // For coordination between threads
   volatile std::atomic<int> wkc_;
   std::atomic<int> expected_wkc_;
-  std::atomic<bool> needlf_;
-  std::atomic<bool> in_normal_op_mode_;
+  std::atomic<bool> needlf_ = false;
+  std::atomic<bool> in_normal_op_mode_ = false;
 };
 
 } // namespace synapticon_ros2_control

@@ -155,14 +155,14 @@ void simpletest(const char *ifname) {
                      0b0000000000100111)
               out_somanet_1->TargetTorque = 0;
 
-            printf("Processdata cycle %4d , WKC %d ,", i, wkc);
-            printf(" Statusword: %X ,", in_somanet_1->Statusword);
-            printf(" Op Mode Display: %d ,", in_somanet_1->OpModeDisplay);
-            // printf(" ActualPos: %" PRId32 " ,", in_somanet_1->PositionValue);
+            // printf("Processdata cycle %4d , WKC %d ,", i, wkc);
+            // printf(" Statusword: %X ,", in_somanet_1->Statusword);
+            // printf(" Op Mode Display: %d ,", in_somanet_1->OpModeDisplay);
+            printf(" ActualPos: %" PRId32 " ,", in_somanet_1->PositionValue);
             // printf(" ActualVel: %" PRId32 " ,", in_somanet_1->VelocityValue);
             // printf(" DemandVel: %" PRId32 " ,",
             // in_somanet_1->VelocityDemandValue);
-            printf(" ActualTorque: %" PRId32 " ,", in_somanet_1->TorqueValue);
+            // printf(" ActualTorque: %" PRId32 " ,", in_somanet_1->TorqueValue);
             printf(" DemandTorque: %" PRId32 " ,", in_somanet_1->TorqueDemand);
 
             printf(" T:%" PRId64 "\r", ec_DCtime);
