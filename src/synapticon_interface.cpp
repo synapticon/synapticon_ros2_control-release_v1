@@ -185,18 +185,20 @@ SynapticonSystemInterface::prepare_command_mode_switch(
       }
     }
   }
-  // // Example criteria: All joints must be given new command mode at the same
-  // time if (new_modes.size() != num_joints_)
-  // {
-  //   return hardware_interface::return_type::ERROR;
-  // }
-  // // Example criteria: All joints must have the same command mode
-  // if (!std::all_of(
-  //       new_modes.begin() + 1, new_modes.end(),
-  //       [&](control_level_t mode) { return mode == new_modes[0]; }))
-  // {
-  //   return hardware_interface::return_type::ERROR;
-  // }
+  // All joints must be given new command mode at the same time
+  if (!start_interfaces.empty() && (new_modes.size() != num_joints_))
+  {
+    RCLCPP_FATAL(get_logger(), "All joints must be given a new mode at the same time.");
+    return hardware_interface::return_type::ERROR;
+  }
+  // All joints must have the same command mode
+  if (!std::all_of(
+        new_modes.begin() + 1, new_modes.end(),
+        [&](control_level_t mode) { return mode == new_modes[0]; }))
+  {
+    RCLCPP_FATAL(get_logger(), "All joints must have the same command mode.");
+    return hardware_interface::return_type::ERROR;
+  }
 
   // Stop motion on all relevant joints that are stopping
   for (std::string key : stop_interfaces) {
@@ -212,6 +214,7 @@ SynapticonSystemInterface::prepare_command_mode_switch(
   for (std::size_t i = 0; i < num_joints_; i++) {
     if (control_level_[i] != control_level_t::UNDEFINED) {
       // Something else is using the joint! Abort!
+      RCLCPP_FATAL(get_logger(), "Something else is using the joint. Abort!");
       return hardware_interface::return_type::ERROR;
     }
     control_level_[i] = new_modes[i];
