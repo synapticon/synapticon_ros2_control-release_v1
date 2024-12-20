@@ -176,22 +176,25 @@ SynapticonSystemInterface::prepare_command_mode_switch(
     const std::vector<std::string> &stop_interfaces) {
   // Prepare for new command modes
   std::vector<control_level_t> new_modes = {};
-  for (std::string key : start_interfaces) {
-    for (std::size_t i = 0; i < num_joints_; i++) {
-      // TODO: add additional control modes
-      if (key ==
-          info_.joints[i].name + "/" + hardware_interface::HW_IF_EFFORT) {
+  for (std::string key : start_interfaces)
+  {
+    for (std::size_t i = 0; i < info_.joints.size(); i++)
+    {
+      if (key == info_.joints[i].name + "/" + hardware_interface::HW_IF_EFFORT)
+      {
         new_modes.push_back(control_level_t::EFFORT);
       }
     }
   }
   // All joints must be given new command mode at the same time
+  std::cerr << "All joints must be given new command mode at the same time" << std::endl;
   if (!start_interfaces.empty() && (new_modes.size() != num_joints_))
   {
     RCLCPP_FATAL(get_logger(), "All joints must be given a new mode at the same time.");
     return hardware_interface::return_type::ERROR;
   }
   // All joints must have the same command mode
+  std::cerr << "All joints must have the same command mode" << std::endl;
   if (!std::all_of(
         new_modes.begin() + 1, new_modes.end(),
         [&](control_level_t mode) { return mode == new_modes[0]; }))
@@ -201,6 +204,7 @@ SynapticonSystemInterface::prepare_command_mode_switch(
   }
 
   // Stop motion on all relevant joints that are stopping
+  std::cerr << "Stop motion on all relevant joints that are stopping" << std::endl;
   for (std::string key : stop_interfaces) {
     for (std::size_t i = 0; i < num_joints_; i++) {
       if (key.find(info_.joints[i].name) != std::string::npos) {
@@ -210,15 +214,40 @@ SynapticonSystemInterface::prepare_command_mode_switch(
       }
     }
   }
-  // Set the new command modes
-  for (std::size_t i = 0; i < num_joints_; i++) {
-    if (control_level_[i] != control_level_t::UNDEFINED) {
-      // Something else is using the joint! Abort!
-      RCLCPP_FATAL(get_logger(), "Something else is using the joint. Abort!");
-      return hardware_interface::return_type::ERROR;
+  // // Set the new command modes
+  // std::cerr << "Set the new command modes" << std::endl;
+  // std::cerr << num_joints_ << std::endl;
+  // std::cerr << control_level_.size() << std::endl;
+  // std::cerr << new_modes.size() << std::endl;
+  // for (std::size_t i = 0; i < num_joints_; i++) {
+  //   if (control_level_[i] != control_level_t::UNDEFINED) {
+  //     // Something else is using the joint! Abort!
+  //     RCLCPP_FATAL(get_logger(), "Something else is using the joint. Abort!");
+  //     return hardware_interface::return_type::ERROR;
+  //   }
+  //   control_level_[i] = new_modes[i];
+  // }
+
+
+
+  std::cerr << "Set the new command modes" << std::endl;
+  for (std::string key : start_interfaces) {
+    for (std::size_t i = 0; i < num_joints_; i++) {
+      if (key.find(info_.joints[i].name) != std::string::npos) {
+        if (control_level_[i] != control_level_t::UNDEFINED) {
+          // Something else is using the joint! Abort!
+          RCLCPP_FATAL(get_logger(), "Something else is using the joint. Abort!");
+          return hardware_interface::return_type::ERROR;
+        }
+        control_level_[i] = new_modes[i];
+      }
     }
-    control_level_[i] = new_modes[i];
   }
+
+
+
+
+
   return hardware_interface::return_type::OK;
 }
 
