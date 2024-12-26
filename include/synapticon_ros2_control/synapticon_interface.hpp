@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <deque>
 #include <memory>
 #include <optional>
 #include <string>
@@ -128,14 +129,16 @@ private:
   std::vector<double> hw_states_velocities_;
   std::vector<double> hw_states_accelerations_;
   std::vector<double> hw_states_efforts_;
-  // Threadsafe vectors to share commands with somanet control loop thread
-  std::unique_ptr<std::vector<std::atomic<double>>> threadsafe_commands_efforts_;
+  // Threadsafe deques to share commands with somanet control loop thread
+  std::deque<std::atomic<double>> threadsafe_commands_efforts_;
+  std::deque<std::atomic<double>> threadsafe_commands_velocities_;
 
   // Enum defining current control level
   // TODO: enable position commands
   enum control_level_t : std::uint8_t {
     UNDEFINED = 0,
     EFFORT = 1, // aka torque
+    VELOCITY = 2,
   };
 
   // Active control mode for each actuator

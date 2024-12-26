@@ -80,7 +80,13 @@ def generate_launch_description():
     fwd_torque_controller_spawner = Node(
         package="controller_manager",
         executable="spawner",
-        arguments=["forward_torque_controller", "--param-file", robot_controllers],
+        arguments=[
+            "--inactive",
+            "forward_torque_controller",
+            "forward_velocity_controller",
+            "--param-file",
+            robot_controllers,
+        ],
     )
 
     # Delay rviz start after `joint_state_broadcaster`
