@@ -2,6 +2,10 @@
 
 A ros2_control driver for Synapticon Somanet motor drivers. Utilizes `soem`.
 
+## Initial Synapticon setup ##
+
+Go through the initial setup of your Synapticon servo drive with a Synapticon rep. This will involve setting gains, number of poles, etc. I used the OBLAC Servo Drive Commissioning page.
+
 ## Usage ##
 
 `colcon build`

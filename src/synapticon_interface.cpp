@@ -17,6 +17,7 @@ constexpr char LOG_NAME[] = "synapticon_ros2_control";
 constexpr char ETHERCAT_INTERFACE[] = "eno0";
 constexpr double DEG_TO_RAD = 0.0174533;
 constexpr size_t PROFILE_TORQUE_MODE = 4;
+constexpr size_t CYCLIC_VELOCITY_MODE = 9;
 } // namespace
 
 hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
@@ -27,7 +28,6 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
   }
   logger_ = std::make_shared<rclcpp::Logger>(
       rclcpp::get_logger("synapticon_interface"));
-  clock_ = std::make_shared<rclcpp::Clock>(rclcpp::Clock());
 
   num_joints_ = info_.joints.size();
 
@@ -49,6 +49,11 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
   for (auto& effort : threadsafe_commands_efforts_)
   {
     effort.store(0.0);
+  }
+  threadsafe_commands_velocities_.resize(num_joints_);
+  for (auto& velocity : threadsafe_commands_velocities_)
+  {
+    velocity.store(0.0);
   }
 
   for (const hardware_interface::ComponentInfo &joint : info_.joints) {
@@ -108,7 +113,7 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
   ec_statecheck(0, EC_STATE_SAFE_OP, EC_TIMEOUTSTATE * 4);
   // Request operational state for all slaves
   expected_wkc_ = (ec_group[0].outputsWKC * 2) + ec_group[0].inputsWKC;
-  for (size_t slave_id = 0; slave_id < ec_slavecount; ++slave_id)
+  for (int slave_id = 0; slave_id < ec_slavecount; ++slave_id)
   {
     ec_slave[slave_id].state = EC_STATE_OPERATIONAL;
   }
@@ -150,9 +155,8 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
     ec_SDOread(1, 0x2112, 0x03, false, &size, &encoder_resolution_,
                EC_TIMEOUTRXM);
   } else {
-    std::cerr
-        << "No encoder configured for position control. Terminating the program"
-        << std::endl;
+    RCLCPP_FATAL(get_logger(),
+                 "No encoder configured for position control. Terminating the program");
     return hardware_interface::CallbackReturn::ERROR;
   }
 
@@ -180,6 +184,10 @@ SynapticonSystemInterface::prepare_command_mode_switch(
       {
         new_modes.push_back(control_level_t::EFFORT);
       }
+      else if (key == info_.joints[i].name + "/" + hardware_interface::HW_IF_VELOCITY)
+      {
+        new_modes.push_back(control_level_t::VELOCITY);
+      }
     }
   }
   // All joints must be given new command mode at the same time
@@ -204,23 +212,11 @@ SynapticonSystemInterface::prepare_command_mode_switch(
         hw_commands_velocities_[i] = 0;
         hw_commands_efforts_[i] = 0;
         threadsafe_commands_efforts_[i] = 0;
+        threadsafe_commands_velocities_[i] = 0;
         control_level_[i] = control_level_t::UNDEFINED;
       }
     }
   }
-  // // Set the new command modes
-  // std::cerr << "Set the new command modes" << std::endl;
-  // std::cerr << num_joints_ << std::endl;
-  // std::cerr << control_level_.size() << std::endl;
-  // std::cerr << new_modes.size() << std::endl;
-  // for (std::size_t i = 0; i < num_joints_; i++) {
-  //   if (control_level_[i] != control_level_t::UNDEFINED) {
-  //     // Something else is using the joint! Abort!
-  //     RCLCPP_FATAL(get_logger(), "Something else is using the joint. Abort!");
-  //     return hardware_interface::return_type::ERROR;
-  //   }
-  //   control_level_[i] = new_modes[i];
-  // }
 
   for (std::string key : start_interfaces) {
     for (std::size_t i = 0; i < num_joints_; i++) {
@@ -259,6 +255,7 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_activate(
     hw_commands_velocities_[i] = 0;
     hw_commands_efforts_[i] = 0;
     threadsafe_commands_efforts_[i] = 0;
+    threadsafe_commands_velocities_[i] = 0;
   }
 
   RCLCPP_INFO(get_logger(), "System successfully activated! Control level: %u",
@@ -276,6 +273,7 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_deactivate(
     hw_commands_velocities_[i] = 0;
     hw_commands_efforts_[i] = 0;
     threadsafe_commands_efforts_[i] = 0;
+    threadsafe_commands_velocities_[i] = 0;
   }
 
   return hardware_interface::CallbackReturn::SUCCESS;
@@ -309,6 +307,7 @@ SynapticonSystemInterface::write(const rclcpp::Time & /*time*/,
     // Torque commands are "per thousand of rated torque"
     hw_commands_efforts_[i] = std::clamp(hw_commands_efforts_[i], -1000.0, 1000.0);
     threadsafe_commands_efforts_[i] = hw_commands_efforts_[i];
+    threadsafe_commands_velocities_[i] = hw_commands_velocities_[i];
   }
 
   return hardware_interface::return_type::OK;
@@ -440,6 +439,8 @@ void SynapticonSystemInterface::somanetCyclicLoop(std::atomic<bool>& in_normal_o
           if (first_iteration)
           {
             out_somanet_1_[joint_idx]->OpMode = PROFILE_TORQUE_MODE;
+            out_somanet_1_[joint_idx]->TorqueOffset = 0;
+            out_somanet_1_[joint_idx]->VelocityOffset = 0;
             first_iteration = false;
           }
 
@@ -468,10 +469,11 @@ void SynapticonSystemInterface::somanetCyclicLoop(std::atomic<bool>& in_normal_o
               out_somanet_1_[joint_idx]->TargetTorque = threadsafe_commands_efforts_[joint_idx];
               out_somanet_1_[joint_idx]->OpMode = PROFILE_TORQUE_MODE;
             }
-            else
+            else if (control_level_[joint_idx] == control_level_t::VELOCITY)
             {
-              out_somanet_1_[joint_idx]->TargetTorque = 0;
-              out_somanet_1_[joint_idx]->TargetVelocity = 0;
+              std::cerr << "Setting velocity command" << std::endl;
+              out_somanet_1_[joint_idx]->TargetVelocity = threadsafe_commands_velocities_[joint_idx];
+              out_somanet_1_[joint_idx]->OpMode = CYCLIC_VELOCITY_MODE;
             }
           }
         }
@@ -480,11 +482,11 @@ void SynapticonSystemInterface::somanetCyclicLoop(std::atomic<bool>& in_normal_o
         // printf(" Statusword: %X ,", in_somanet_1->Statusword);
         // printf(" Op Mode Display: %d ,", in_somanet_1->OpModeDisplay);
         // printf(" ActualPos: %" PRId32 " ,", in_somanet_1->PositionValue);
-        // printf(" ActualVel: %" PRId32 " ,", in_somanet_1->VelocityValue);
-        // printf(" DemandVel: %" PRId32 " ,", in_somanet_1->VelocityDemandValue);
+        printf(" ActualVel: %" PRId32 " ,", in_somanet_1_[0]->VelocityValue);
+        printf(" DemandVel: %" PRId32 " ,", in_somanet_1_[0]->VelocityDemandValue);
         // printf(" ActualTorque: %" PRId32 " ,", in_somanet_1_[0]->TorqueValue);
         // printf(" DemandTorque: %" PRId32 " ,", in_somanet_1_[0]->TorqueDemand);
-        // printf("\n");
+        printf("\n");
 
         // printf(" T:%" PRId64 "\r", ec_DCtime);
         needlf_ = true;

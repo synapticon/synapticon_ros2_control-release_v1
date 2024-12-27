@@ -97,11 +97,6 @@ public:
    */
   rclcpp::Logger get_logger() const { return *logger_; }
 
-  /**
-   * \return clock of the SystemInterface.
-   */
-  rclcpp::Clock::SharedPtr get_clock() const { return clock_; }
-
 private:
   /**
    * @brief Error checking. Typically runs in a separate thread.
@@ -111,6 +106,7 @@ private:
   /**
    * @brief Somanet control loop runs in a dedicated thread
    * This steps through several states to get to Operational, if needed
+   * @param in_normal_op_mode_ A flag to the main thread that the Somanet state machine is ready
    */
   void somanetCyclicLoop(std::atomic<bool>& in_normal_op_mode_);
 
@@ -120,7 +116,6 @@ private:
 
   // Objects for logging
   std::shared_ptr<rclcpp::Logger> logger_;
-  rclcpp::Clock::SharedPtr clock_;
 
   // Store the commands for the simulated robot
   std::vector<double> hw_commands_velocities_;
