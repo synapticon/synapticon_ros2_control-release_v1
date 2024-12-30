@@ -22,44 +22,43 @@
 
 namespace synapticon_ros2_control {
 
-namespace
-{
+namespace {
 #pragma pack(1)
-  // Somanet structs
-  typedef struct {
-    uint16_t Statusword;
-    int8_t OpModeDisplay;
-    int32_t PositionValue;
-    int32_t VelocityValue;
-    int16_t TorqueValue;
-    uint16_t AnalogInput1;
-    uint16_t AnalogInput2;
-    uint16_t AnalogInput3;
-    uint16_t AnalogInput4;
-    uint32_t TuningStatus;
-    uint32_t DigitalInputs;
-    uint32_t UserMISO;
-    uint32_t Timestamp;
-    int32_t PositionDemandInternalValue;
-    int32_t VelocityDemandValue;
-    int16_t TorqueDemand;
-  } InSomanet50t;
+// Somanet structs
+typedef struct {
+  uint16_t Statusword;
+  int8_t OpModeDisplay;
+  int32_t PositionValue;
+  int32_t VelocityValue;
+  int16_t TorqueValue;
+  uint16_t AnalogInput1;
+  uint16_t AnalogInput2;
+  uint16_t AnalogInput3;
+  uint16_t AnalogInput4;
+  uint32_t TuningStatus;
+  uint32_t DigitalInputs;
+  uint32_t UserMISO;
+  uint32_t Timestamp;
+  int32_t PositionDemandInternalValue;
+  int32_t VelocityDemandValue;
+  int16_t TorqueDemand;
+} InSomanet50t;
 
-  typedef struct {
-    uint16_t Controlword;
-    int8_t OpMode;
-    int16_t TargetTorque;
-    int32_t TargetPosition;
-    int32_t TargetVelocity;
-    int16_t TorqueOffset;
-    int32_t TuningCommand;
-    int32_t PhysicalOutputs;
-    int32_t BitMask;
-    int32_t UserMOSI;
-    int32_t VelocityOffset;
-  } OutSomanet50t;
+typedef struct {
+  uint16_t Controlword;
+  int8_t OpMode;
+  int16_t TargetTorque;
+  int32_t TargetPosition;
+  int32_t TargetVelocity;
+  int16_t TorqueOffset;
+  int32_t TuningCommand;
+  int32_t PhysicalOutputs;
+  int32_t BitMask;
+  int32_t UserMOSI;
+  int32_t VelocityOffset;
+} OutSomanet50t;
 #pragma pack()
-}
+} // namespace
 
 class SynapticonSystemInterface : public hardware_interface::SystemInterface {
 public:
@@ -106,9 +105,10 @@ private:
   /**
    * @brief Somanet control loop runs in a dedicated thread
    * This steps through several states to get to Operational, if needed
-   * @param in_normal_op_mode_ A flag to the main thread that the Somanet state machine is ready
+   * @param in_normal_op_mode_ A flag to the main thread that the Somanet state
+   * machine is ready
    */
-  void somanetCyclicLoop(std::atomic<bool>& in_normal_op_mode_);
+  void somanetCyclicLoop(std::atomic<bool> &in_normal_op_mode_);
 
   std::optional<std::thread> somanet_control_thread_;
 

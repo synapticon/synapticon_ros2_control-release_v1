@@ -162,7 +162,8 @@ void simpletest(const char *ifname) {
             // printf(" ActualVel: %" PRId32 " ,", in_somanet_1->VelocityValue);
             // printf(" DemandVel: %" PRId32 " ,",
             // in_somanet_1->VelocityDemandValue);
-            // printf(" ActualTorque: %" PRId32 " ,", in_somanet_1->TorqueValue);
+            // printf(" ActualTorque: %" PRId32 " ,",
+            // in_somanet_1->TorqueValue);
             printf(" DemandTorque: %" PRId32 " ,", in_somanet_1->TorqueDemand);
 
             printf(" T:%" PRId64 "\r", ec_DCtime);
