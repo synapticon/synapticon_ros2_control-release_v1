@@ -18,3 +18,10 @@ forward_velocity_controller:
     joints:
       - joint1
     interface_name: velocity
+
+forward_position_controller:
+  ros__parameters:
+    type: forward_command_controller/ForwardCommandController
+    joints:
+      - joint1
+    interface_name: position

@@ -12,6 +12,7 @@
       </hardware>
 
       <joint name="${prefix}joint1">
+        <command_interface name="position"/>
         <command_interface name="velocity"/>
         <command_interface name="effort"/>
         <state_interface name="position"/>

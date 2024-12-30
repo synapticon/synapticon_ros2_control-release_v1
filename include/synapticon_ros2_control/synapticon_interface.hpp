@@ -118,6 +118,7 @@ private:
   std::shared_ptr<rclcpp::Logger> logger_;
 
   // Store the commands for the simulated robot
+  std::vector<double> hw_commands_positions_;
   std::vector<double> hw_commands_velocities_;
   std::vector<double> hw_commands_efforts_;
   std::vector<double> hw_states_positions_;
@@ -127,6 +128,7 @@ private:
   // Threadsafe deques to share commands with somanet control loop thread
   std::deque<std::atomic<double>> threadsafe_commands_efforts_;
   std::deque<std::atomic<double>> threadsafe_commands_velocities_;
+  std::deque<std::atomic<double>> threadsafe_commands_positions_;
 
   // Enum defining current control level
   // TODO: enable position commands
@@ -134,6 +136,7 @@ private:
     UNDEFINED = 0,
     EFFORT = 1, // aka torque
     VELOCITY = 2,
+    POSITION = 3,
   };
 
   // Active control mode for each actuator

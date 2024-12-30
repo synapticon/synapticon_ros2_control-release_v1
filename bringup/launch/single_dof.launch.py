@@ -77,13 +77,14 @@ def generate_launch_description():
         arguments=["joint_state_broadcaster"],
     )
 
-    fwd_torque_controller_spawner = Node(
+    fwd_controller_spawner = Node(
         package="controller_manager",
         executable="spawner",
         arguments=[
             "--inactive",
             "forward_torque_controller",
             "forward_velocity_controller",
+            "forward_position_controller",
             "--param-file",
             robot_controllers,
         ],
@@ -99,20 +100,18 @@ def generate_launch_description():
 
     # Delay start of joint_state_broadcaster after `robot_controller`
     # TODO(anyone): This is a workaround for flaky tests. Remove when fixed.
-    delay_joint_state_broadcaster_after_fwd_torque_controller_spawner = (
-        RegisterEventHandler(
-            event_handler=OnProcessExit(
-                target_action=fwd_torque_controller_spawner,
-                on_exit=[joint_state_broadcaster_spawner],
-            )
+    delay_joint_state_broadcaster_after_fwd_controller_spawner = RegisterEventHandler(
+        event_handler=OnProcessExit(
+            target_action=fwd_controller_spawner,
+            on_exit=[joint_state_broadcaster_spawner],
         )
     )
 
     nodes = [
         robot_state_pub_node,
-        fwd_torque_controller_spawner,
+        fwd_controller_spawner,
         delay_rviz_after_joint_state_broadcaster_spawner,
-        delay_joint_state_broadcaster_after_fwd_torque_controller_spawner,
+        delay_joint_state_broadcaster_after_fwd_controller_spawner,
     ]
 
     return LaunchDescription(declared_arguments + nodes)

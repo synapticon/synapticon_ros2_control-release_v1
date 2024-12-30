@@ -18,6 +18,7 @@ constexpr char ETHERCAT_INTERFACE[] = "eno0";
 constexpr double DEG_TO_RAD = 0.0174533;
 constexpr size_t PROFILE_TORQUE_MODE = 4;
 constexpr size_t CYCLIC_VELOCITY_MODE = 9;
+constexpr size_t CYCLIC_POSITION_MODE = 8;
 } // namespace
 
 hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
@@ -39,6 +40,8 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
                                   std::numeric_limits<double>::quiet_NaN());
   hw_states_efforts_.resize(num_joints_,
                             std::numeric_limits<double>::quiet_NaN());
+  hw_commands_positions_.resize(num_joints_,
+                                 std::numeric_limits<double>::quiet_NaN());
   hw_commands_velocities_.resize(num_joints_,
                                  std::numeric_limits<double>::quiet_NaN());
   hw_commands_efforts_.resize(num_joints_,
@@ -48,22 +51,31 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
   threadsafe_commands_efforts_.resize(num_joints_);
   for (auto& effort : threadsafe_commands_efforts_)
   {
-    effort.store(0.0);
+    effort.store(std::numeric_limits<double>::quiet_NaN());
   }
   threadsafe_commands_velocities_.resize(num_joints_);
   for (auto& velocity : threadsafe_commands_velocities_)
   {
     velocity.store(0.0);
   }
+  threadsafe_commands_positions_.resize(num_joints_);
+  for (auto& position : threadsafe_commands_positions_)
+  {
+    position.store(std::numeric_limits<double>::quiet_NaN());
+  }
 
   for (const hardware_interface::ComponentInfo &joint : info_.joints) {
-    if (!(joint.command_interfaces[0].name ==
+    if (!(
+          joint.command_interfaces[0].name ==
+              hardware_interface::HW_IF_POSITION ||
+          joint.command_interfaces[0].name ==
               hardware_interface::HW_IF_VELOCITY ||
           joint.command_interfaces[0].name ==
               hardware_interface::HW_IF_EFFORT)) {
       RCLCPP_FATAL(get_logger(),
-                   "Joint '%s' has %s command interface. Expected %s or %s.",
+                   "Joint '%s' has %s command interface. Expected %s, %s, or %s.",
                    joint.name.c_str(), joint.command_interfaces[0].name.c_str(),
+                   hardware_interface::HW_IF_POSITION,
                    hardware_interface::HW_IF_VELOCITY,
                    hardware_interface::HW_IF_EFFORT);
       return hardware_interface::CallbackReturn::ERROR;
@@ -188,6 +200,10 @@ SynapticonSystemInterface::prepare_command_mode_switch(
       {
         new_modes.push_back(control_level_t::VELOCITY);
       }
+      else if (key == info_.joints[i].name + "/" + hardware_interface::HW_IF_POSITION)
+      {
+        new_modes.push_back(control_level_t::POSITION);
+      }
     }
   }
   // All joints must be given new command mode at the same time
@@ -211,8 +227,9 @@ SynapticonSystemInterface::prepare_command_mode_switch(
       if (key.find(info_.joints[i].name) != std::string::npos) {
         hw_commands_velocities_[i] = 0;
         hw_commands_efforts_[i] = 0;
-        threadsafe_commands_efforts_[i] = 0;
+        threadsafe_commands_efforts_[i] = std::numeric_limits<double>::quiet_NaN();
         threadsafe_commands_velocities_[i] = 0;
+        threadsafe_commands_positions_[i] = std::numeric_limits<double>::quiet_NaN();
         control_level_[i] = control_level_t::UNDEFINED;
       }
     }
@@ -254,8 +271,9 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_activate(
 
     hw_commands_velocities_[i] = 0;
     hw_commands_efforts_[i] = 0;
-    threadsafe_commands_efforts_[i] = 0;
+    threadsafe_commands_efforts_[i] = std::numeric_limits<double>::quiet_NaN();
     threadsafe_commands_velocities_[i] = 0;
+    threadsafe_commands_positions_[i] = std::numeric_limits<double>::quiet_NaN();
   }
 
   RCLCPP_INFO(get_logger(), "System successfully activated! Control level: %u",
@@ -272,8 +290,9 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_deactivate(
 
     hw_commands_velocities_[i] = 0;
     hw_commands_efforts_[i] = 0;
-    threadsafe_commands_efforts_[i] = 0;
+    threadsafe_commands_efforts_[i] = std::numeric_limits<double>::quiet_NaN();
     threadsafe_commands_velocities_[i] = 0;
+    threadsafe_commands_positions_[i] = std::numeric_limits<double>::quiet_NaN();
   }
 
   return hardware_interface::CallbackReturn::SUCCESS;
@@ -308,6 +327,7 @@ SynapticonSystemInterface::write(const rclcpp::Time & /*time*/,
     hw_commands_efforts_[i] = std::clamp(hw_commands_efforts_[i], -1000.0, 1000.0);
     threadsafe_commands_efforts_[i] = hw_commands_efforts_[i];
     threadsafe_commands_velocities_[i] = hw_commands_velocities_[i];
+    threadsafe_commands_positions_[i] = hw_commands_positions_[i];
   }
 
   return hardware_interface::return_type::OK;
@@ -337,6 +357,9 @@ std::vector<hardware_interface::CommandInterface>
 SynapticonSystemInterface::export_command_interfaces() {
   std::vector<hardware_interface::CommandInterface> command_interfaces;
   for (std::size_t i = 0; i < num_joints_; i++) {
+    command_interfaces.emplace_back(hardware_interface::CommandInterface(
+        info_.joints[i].name, hardware_interface::HW_IF_POSITION,
+        &hw_commands_positions_[i]));
     command_interfaces.emplace_back(hardware_interface::CommandInterface(
         info_.joints[i].name, hardware_interface::HW_IF_VELOCITY,
         &hw_commands_velocities_[i]));
@@ -461,19 +484,33 @@ void SynapticonSystemInterface::somanetCyclicLoop(std::atomic<bool>& in_normal_o
           else if ((in_somanet_1_[joint_idx]->Statusword & 0b0000000001101111) == 0b0000000000100011)
               out_somanet_1_[joint_idx]->Controlword = 0b00001111;
 
-          // Sending torque command
+          // Normal operation
           else if ((in_somanet_1_[joint_idx]->Statusword & 0b0000000001101111) == 0b0000000000100111)
           {
             in_normal_op_mode = true;
             if (control_level_[joint_idx] == control_level_t::EFFORT)
             {
-              out_somanet_1_[joint_idx]->TargetTorque = threadsafe_commands_efforts_[joint_idx];
-              out_somanet_1_[joint_idx]->OpMode = PROFILE_TORQUE_MODE;
+              if (!std::isnan(threadsafe_commands_efforts_[joint_idx]))
+              {
+                out_somanet_1_[joint_idx]->TargetTorque = threadsafe_commands_efforts_[joint_idx];
+                out_somanet_1_[joint_idx]->OpMode = PROFILE_TORQUE_MODE;
+              }
             }
             else if (control_level_[joint_idx] == control_level_t::VELOCITY)
             {
-              out_somanet_1_[joint_idx]->TargetVelocity = threadsafe_commands_velocities_[joint_idx];
-              out_somanet_1_[joint_idx]->OpMode = CYCLIC_VELOCITY_MODE;
+              if (!std::isnan(threadsafe_commands_velocities_[joint_idx]))
+              {
+                out_somanet_1_[joint_idx]->TargetVelocity = threadsafe_commands_velocities_[joint_idx];
+                out_somanet_1_[joint_idx]->OpMode = CYCLIC_VELOCITY_MODE;
+              }
+            }
+            else if (control_level_[joint_idx] == control_level_t::POSITION)
+            {
+              if (!std::isnan(threadsafe_commands_positions_[joint_idx]))
+              {
+                out_somanet_1_[joint_idx]->TargetPosition = threadsafe_commands_positions_[joint_idx];
+                out_somanet_1_[joint_idx]->OpMode = CYCLIC_POSITION_MODE;
+              }
             }
             // If in UNDEFINED mode, send a velocity command of 0
             else if (control_level_[joint_idx] == control_level_t::UNDEFINED)
@@ -487,7 +524,8 @@ void SynapticonSystemInterface::somanetCyclicLoop(std::atomic<bool>& in_normal_o
         // printf("Processdata cycle %4d , WKC %d ,", i, wkc);
         // printf(" Statusword: %X ,", in_somanet_1->Statusword);
         // printf(" Op Mode Display: %d ,", in_somanet_1->OpModeDisplay);
-        // printf(" ActualPos: %" PRId32 " ,", in_somanet_1->PositionValue);
+        // printf(" ActualPos: %" PRId32 " ,", in_somanet_1_[0]->PositionValue);
+        // printf(" DemnadPos: %" PRId32 " ,", in_somanet_1_[0]->PositionDemandInternalValue);
         // printf(" ActualVel: %" PRId32 " ,", in_somanet_1_[0]->VelocityValue);
         // printf(" DemandVel: %" PRId32 " ,", in_somanet_1_[0]->VelocityDemandValue);
         // printf(" ActualTorque: %" PRId32 " ,", in_somanet_1_[0]->TorqueValue);
