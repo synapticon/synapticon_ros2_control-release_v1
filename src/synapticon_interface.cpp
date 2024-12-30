@@ -438,7 +438,8 @@ void SynapticonSystemInterface::somanetCyclicLoop(std::atomic<bool>& in_normal_o
         {
           if (first_iteration)
           {
-            out_somanet_1_[joint_idx]->OpMode = PROFILE_TORQUE_MODE;
+            // Default to CYCLIC_VELOCITY_MODE with a command vel of 0
+            out_somanet_1_[joint_idx]->OpMode = CYCLIC_VELOCITY_MODE;
             out_somanet_1_[joint_idx]->TorqueOffset = 0;
             out_somanet_1_[joint_idx]->VelocityOffset = 0;
             first_iteration = false;
@@ -487,7 +488,7 @@ void SynapticonSystemInterface::somanetCyclicLoop(std::atomic<bool>& in_normal_o
         // printf(" Statusword: %X ,", in_somanet_1->Statusword);
         // printf(" Op Mode Display: %d ,", in_somanet_1->OpModeDisplay);
         // printf(" ActualPos: %" PRId32 " ,", in_somanet_1->PositionValue);
-        // printf(" ActualVel: %" PRId32 " ,", in_somanet_1_[0]->Velocit0yValue);
+        // printf(" ActualVel: %" PRId32 " ,", in_somanet_1_[0]->VelocityValue);
         // printf(" DemandVel: %" PRId32 " ,", in_somanet_1_[0]->VelocityDemandValue);
         // printf(" ActualTorque: %" PRId32 " ,", in_somanet_1_[0]->TorqueValue);
         // printf(" DemandTorque: %" PRId32 " ,", in_somanet_1_[0]->TorqueDemand);
