@@ -13,8 +13,6 @@ using namespace std::chrono_literals;
 namespace synapticon_ros2_control {
 namespace {
 constexpr char LOG_NAME[] = "synapticon_ros2_control";
-// TODO: parameterize this
-constexpr char ETHERCAT_INTERFACE[] = "eno0";
 constexpr double DEG_TO_RAD = 0.0174533;
 constexpr size_t PROFILE_TORQUE_MODE = 4;
 constexpr size_t CYCLIC_VELOCITY_MODE = 9;
@@ -102,7 +100,9 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
   //                    (void *)&ctime);
 
   // Ethercat initialization
-  int ec_init_status = ec_init(ETHERCAT_INTERFACE);
+  // Define the interface name (e.g. eth0 or eno0) in the ros2_control.xacro
+  std::string interface_name = info_.hardware_parameters["interface_name"];
+  int ec_init_status = ec_init(interface_name.c_str());
   if (ec_init_status <= 0) {
     RCLCPP_FATAL_STREAM(get_logger(),
                         "Error during initialization of ethercat interface: "

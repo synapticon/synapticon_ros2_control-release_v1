@@ -3,6 +3,7 @@
 #include <atomic>
 #include <deque>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <thread>
@@ -12,7 +13,6 @@
 #include <hardware_interface/hardware_info.hpp>
 #include <hardware_interface/system_interface.hpp>
 #include <hardware_interface/types/hardware_interface_return_values.hpp>
-#include <rclcpp/clock.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/macros.hpp>
 #include <rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp>
@@ -22,7 +22,6 @@
 
 namespace synapticon_ros2_control {
 
-namespace {
 #pragma pack(1)
 // Somanet structs
 typedef struct {
@@ -58,7 +57,6 @@ typedef struct {
   int32_t VelocityOffset;
 } OutSomanet50t;
 #pragma pack()
-} // namespace
 
 class SynapticonSystemInterface : public hardware_interface::SystemInterface {
 public:

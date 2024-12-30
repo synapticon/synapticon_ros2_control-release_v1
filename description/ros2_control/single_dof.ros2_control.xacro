@@ -9,6 +9,8 @@
 
         <!-- For testing, GenericSystem is much simpler and doesn't depend on the code in this package -->
         <!-- plugin>mock_components/GenericSystem</plugin -->
+
+        <param name="interface_name">eno0</param>
       </hardware>
 
       <joint name="${prefix}joint1">
