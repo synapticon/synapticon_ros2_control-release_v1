@@ -471,8 +471,13 @@ void SynapticonSystemInterface::somanetCyclicLoop(std::atomic<bool>& in_normal_o
             }
             else if (control_level_[joint_idx] == control_level_t::VELOCITY)
             {
-              std::cerr << "Setting velocity command" << std::endl;
               out_somanet_1_[joint_idx]->TargetVelocity = threadsafe_commands_velocities_[joint_idx];
+              out_somanet_1_[joint_idx]->OpMode = CYCLIC_VELOCITY_MODE;
+            }
+            // If in UNDEFINED mode, send a velocity command of 0
+            else if (control_level_[joint_idx] == control_level_t::UNDEFINED)
+            {
+              out_somanet_1_[joint_idx]->TargetVelocity = 0;
               out_somanet_1_[joint_idx]->OpMode = CYCLIC_VELOCITY_MODE;
             }
           }
@@ -482,11 +487,11 @@ void SynapticonSystemInterface::somanetCyclicLoop(std::atomic<bool>& in_normal_o
         // printf(" Statusword: %X ,", in_somanet_1->Statusword);
         // printf(" Op Mode Display: %d ,", in_somanet_1->OpModeDisplay);
         // printf(" ActualPos: %" PRId32 " ,", in_somanet_1->PositionValue);
-        printf(" ActualVel: %" PRId32 " ,", in_somanet_1_[0]->VelocityValue);
-        printf(" DemandVel: %" PRId32 " ,", in_somanet_1_[0]->VelocityDemandValue);
+        // printf(" ActualVel: %" PRId32 " ,", in_somanet_1_[0]->Velocit0yValue);
+        // printf(" DemandVel: %" PRId32 " ,", in_somanet_1_[0]->VelocityDemandValue);
         // printf(" ActualTorque: %" PRId32 " ,", in_somanet_1_[0]->TorqueValue);
         // printf(" DemandTorque: %" PRId32 " ,", in_somanet_1_[0]->TorqueDemand);
-        printf("\n");
+        // printf("\n");
 
         // printf(" T:%" PRId64 "\r", ec_DCtime);
         needlf_ = true;
