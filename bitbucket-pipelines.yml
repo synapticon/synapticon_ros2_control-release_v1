@@ -18,7 +18,8 @@ pipelines:
           - docker
         script:
           - export DOCKER_IMAGE="ros:humble"
-          - git clone --quiet --depth 1 https://github.com/ros-industrial/industrial_ci .industrial_ci -b master
+          # TODO: revert to upstream when merged
+          - git clone --quiet --depth 1 https://github.com/AndyZe/industrial_ci .industrial_ci -b no_docker_init
           - .industrial_ci/bitbucket.sh ROS_DISTRO=humble
     - step:
         name: Clang format
@@ -33,7 +34,8 @@ pipelines:
           - export CLANG_FORMAT_VERSION="14"
           # Don't run clang-format on these directories
           - rm -rf ./osal ./oshw ./soem
-          - git clone --quiet --depth 1 https://github.com/ros-industrial/industrial_ci .industrial_ci -b master
+          # TODO: revert to upstream when merged
+          - git clone --quiet --depth 1 https://github.com/AndyZe/industrial_ci .industrial_ci -b no_docker_init
           - .industrial_ci/bitbucket.sh ROS_DISTRO=humble
 definitions:
   services:
