@@ -392,7 +392,7 @@ OSAL_THREAD_FUNC SynapticonSystemInterface::ecatCheck(void * /*ptr*/) {
         needlf_ = false;
         printf("\n");
       }
-      /* one ore more slaves are not responding */
+      // one ore more slaves are not responding
       ec_group[currentgroup].docheckstate = false;
       ec_readstate();
       for (slave = 1; slave <= ec_slavecount; slave++) {
@@ -415,7 +415,7 @@ OSAL_THREAD_FUNC SynapticonSystemInterface::ecatCheck(void * /*ptr*/) {
               printf("MESSAGE : slave %d reconfigured\n", slave);
             }
           } else if (!ec_slave[slave].islost) {
-            /* re-check state */
+            // re-check state
             ec_statecheck(slave, EC_STATE_OPERATIONAL, EC_TIMEOUTRET);
             if (ec_slave[slave].state == EC_STATE_NONE) {
               ec_slave[slave].islost = true;
@@ -462,7 +462,7 @@ void SynapticonSystemInterface::somanetCyclicLoop(
             first_iteration = false;
           }
 
-          // Fault reset: Fault -> Swith on disabled, if the drive is in fault
+          // Fault reset: Fault -> Switch on disabled, if the drive is in fault
           // state
           if ((in_somanet_1_[joint_idx]->Statusword & 0b0000000001001111) ==
               0b0000000000001000)
