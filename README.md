@@ -24,21 +24,7 @@ Clone this repository into the `src` folder then build it:
 
 `colcon build`
 
-### Simple zero-torque control example on hardware ###
-
-This is a simple executable, separate from ros2_control. The motor seeks to maintain zero torque. Use it to check your ethercat connection.
-
-`cd ros2_ws/install/synapticon_ros2_control/bin`
-
-Give the application the correct privileges. This only needs to be run once, or after every build:
-
-`sudo setcap cap_net_raw=ep torque_control_executable`
-
-`torque_control_executable`
-
-### ros2_control example on actual hardware ###
-
-#### Ethernet connection ####
+### Ethernet connection ###
 
 I configured a wired ethernet connection with the following settings:
 
@@ -49,6 +35,22 @@ I configured a wired ethernet connection with the following settings:
 - IPv6: automatic
 
 Connect your PC to the Synapticon drive with an ethernet cable.
+
+### Simple zero-torque control example on hardware ###
+
+This is a simple executable, separate from ros2_control. The motor seeks to maintain zero torque. Use it to check your ethercat connection.
+
+`cd ros2_ws/install/synapticon_ros2_control/bin`
+
+Give the application the correct privileges. This only needs to be run once, or after every build:
+
+`sudo setcap cap_net_raw=ep torque_control_executable`
+
+Change the "interface_name" variable and recompile if your ethernet interface is not named `eno0`. Finally, run the example with:
+
+`torque_control_executable`
+
+### ros2_control example on actual hardware ###
 
 #### Set up a systemd service to grant socket communication privileges to ros2_control_node ####
 
@@ -66,16 +68,16 @@ Description=Launch ros2_control_node with socket permissions
 
 [Service]
 Type=simple
-User=apptronik
-ExecStartPre=/bin/bash -c 'source /opt/ros/humble/setup.bash; source /home/apptronik/.bashrc; source /home/apptronik/workspaces/isaac_ros-dev/install/setup.bash'
+User=your_user
+ExecStartPre=/bin/bash -c 'source /opt/ros/humble/setup.bash; source /home/your_user/.bashrc; source /home/your_user/workspaces/isaac_ros-dev/install/setup.bash'
 # Write the user environment to file, for debugging
-#ExecStartPre=/bin/bash -c 'env > /home/apptronik/Documents/ros_env_before_start.txt'
+#ExecStartPre=/bin/bash -c 'env > /home/your_user/Documents/ros_env_before_start.txt'
 
 # This is essentially a copy of my normal user env
-Environment="AMENT_PREFIX_PATH=/home/apptronik/workspaces/isaac_ros-dev/install/synapticon_ros2_control:/opt/ros/humble"
-Environment="HOME=/home/apptronik"
+Environment="AMENT_PREFIX_PATH=/home/your_user/workspaces/isaac_ros-dev/install/synapticon_ros2_control:/opt/ros/humble"
+Environment="HOME=/home/your_user"
 Environment="LD_LIBRARY_PATH=/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib"
-Environment="PATH=/opt/ros/humble/bin:/usr/lib/ccache:/home/apptronik/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin"
+Environment="PATH=/opt/ros/humble/bin:/usr/lib/ccache:/home/your_user/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin"
 Environment="PYTHONPATH=/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages"
 Environment="ROS_DISTRO=humble"
 Environment="ROS_DOMAIN_ID=42"
@@ -83,8 +85,8 @@ Environment="ROS_LOCALHOST_ONLY=1"
 Environment="ROS_PYTHON_VERSION=3"
 Environment="ROS_VERSION=2"
 Environment="ROSCONSOLE_FORMAT=[${severity}] - ${node}: [${time}] ${message}"
-Environment="USER=apptronik"
-Environment="USERNAME=apptronik"
+Environment="USER=your_user"
+Environment="USERNAME=your_user"
 
 ExecStart=/opt/ros/humble/bin/ros2 launch synapticon_ros2_control elevated_permissions.launch.py
 AmbientCapabilities=CAP_NET_RAW
