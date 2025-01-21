@@ -17,6 +17,8 @@ constexpr double DEG_TO_RAD = 0.0174533;
 constexpr size_t PROFILE_TORQUE_MODE = 4;
 constexpr size_t CYCLIC_VELOCITY_MODE = 9;
 constexpr size_t CYCLIC_POSITION_MODE = 8;
+constexpr double RPM_TO_RAD_PER_S = 0.10472;
+constexpr double RAD_PER_S_TO_RPM = 1 / RPM_TO_RAD_PER_S;
 } // namespace
 
 hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
@@ -300,10 +302,8 @@ SynapticonSystemInterface::read(const rclcpp::Time & /*time*/,
     std::lock_guard<std::mutex> lock(in_somanet_mtx_);
     // InSomanet50t doesn't include acceleration
     hw_states_accelerations_[i] = 0;
-    hw_states_velocities_[i] = in_somanet_1_[i]->VelocityValue;
-    // TODO: this formula doesn't make sense to me
-    hw_states_positions_[i] = in_somanet_1_[0]->PositionValue * DEG_TO_RAD * 4 *
-                              3.14159 / encoder_resolution_;
+    hw_states_velocities_[i] = in_somanet_1_[i]->VelocityValue * RPM_TO_RAD_PER_S;
+    hw_states_positions_[i] = in_somanet_1_[0]->PositionValue * 2 * 3.14159 / encoder_resolution_;
     hw_states_efforts_[i] = in_somanet_1_[i]->TorqueValue;
   }
 
@@ -322,7 +322,7 @@ SynapticonSystemInterface::write(const rclcpp::Time & /*time*/,
     hw_commands_efforts_[i] =
         std::clamp(hw_commands_efforts_[i], -1000.0, 1000.0);
     threadsafe_commands_efforts_[i] = hw_commands_efforts_[i];
-    threadsafe_commands_velocities_[i] = hw_commands_velocities_[i];
+    threadsafe_commands_velocities_[i] = hw_commands_velocities_[i] * RAD_PER_S_TO_RPM;
     threadsafe_commands_positions_[i] = hw_commands_positions_[i];
   }
 
@@ -515,12 +515,12 @@ void SynapticonSystemInterface::somanetCyclicLoop(
         // printf(" Statusword: %X ,", in_somanet_1->Statusword);
         // printf(" Op Mode Display: %d ,", in_somanet_1->OpModeDisplay);
         // printf(" ActualPos: %" PRId32 " ,\n", in_somanet_1_[0]->PositionValue);
-        // printf(" DemnadPos: %" PRId32 " ,",
+        // printf(" DemandPos: %" PRId32 " ,",
         // in_somanet_1_[0]->PositionDemandInternalValue); printf(" ActualVel:
-        // %" PRId32 " ,", in_somanet_1_[0]->VelocityValue); printf(" DemandVel:
-        // %" PRId32 " ,", in_somanet_1_[0]->VelocityDemandValue); printf("
-        // ActualTorque: %" PRId32 " ,", in_somanet_1_[0]->TorqueValue);
-        printf(" DemandTorque: %" PRId32 " ,", in_somanet_1_[0]->TorqueDemand);
+        // %" PRId32 " ,", in_somanet_1_[0]->VelocityValue);
+        printf(" DemandVel: %" PRId32 " ,", in_somanet_1_[0]->VelocityDemandValue);
+        //printf("ActualTorque: %" PRId32 " ,", in_somanet_1_[0]->TorqueValue);
+        // printf(" DemandTorque: %" PRId32 " ,", in_somanet_1_[0]->TorqueDemand);
         printf("\n");
 
         // printf(" T:%" PRId64 "\r", ec_DCtime);
