@@ -1,6 +1,10 @@
 ## Description ##
 
-A ros2_control driver for Synapticon Somanet motor drivers. Utilizes `soem`.
+A ros2_control driver for Synapticon Somanet Node motor drivers. Utilizes `soem`.
+
+## Requirements ##
+
+This package is intended for Linux OS, Somanet Node motor drivers, and ROS2 Humble as of January 2025.
 
 ## Initial Synapticon setup ##
 
@@ -8,13 +12,23 @@ Go through the initial setup of your Synapticon servo drive with a Synapticon re
 
 ## Usage ##
 
+Create a ROS2 workspace:
+
+`mkdir -p ~/ros2_ws/src`
+
+`cd ~/ros2_ws/src`
+
+Clone this repository into the `src` folder then build it:
+
+`cd ~/ros2_ws`
+
 `colcon build`
 
 ### Simple zero-torque control example on hardware ###
 
-This is a simple executable, separate from ros2_control. Use it to check your ethercat connection.
+This is a simple executable, separate from ros2_control. The motor seeks to maintain zero torque. Use it to check your ethercat connection.
 
-`cd your_workspace/install/synapticon_ros2_control/bin`
+`cd ros2_ws/install/synapticon_ros2_control/bin`
 
 Give the application the correct privileges. This only needs to be run once, or after every build:
 
@@ -22,9 +36,19 @@ Give the application the correct privileges. This only needs to be run once, or 
 
 `torque_control_executable`
 
-The motor seeks to maintain zero torque.
-
 ### ros2_control example on actual hardware ###
+
+#### Ethernet connection ####
+
+I configured a wired ethernet connection with the following settings:
+
+- MTU: automatic
+
+- IPv4: Manual, address 192.168.0.0, netmask 255.255.255.0, gateway 192.168.0.1, DNS automatic
+
+- IPv6: automatic
+
+Connect your PC to the Synapticon drive with an ethernet cable.
 
 #### Set up a systemd service to grant socket communication privileges to ros2_control_node ####
 
@@ -104,6 +128,10 @@ Then do the launching:
 `ros2 launch synapticon_ros2_control elevated_permissions.launch.py`
 
 `ros2 launch synapticon_ros2_control single_dof.launch.py`
+
+Check the status like so:
+
+`ros2 control list_controllers`
 
 Publish commmands from the command line like so:
 
