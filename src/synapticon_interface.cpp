@@ -19,6 +19,10 @@ constexpr size_t CYCLIC_VELOCITY_MODE = 9;
 constexpr size_t CYCLIC_POSITION_MODE = 8;
 constexpr double RPM_TO_RAD_PER_S = 0.10472;
 constexpr double RAD_PER_S_TO_RPM = 1 / RPM_TO_RAD_PER_S;
+constexpr uint32_t PROFILE_VELOCITY = 60;
+constexpr uint32_t PROFILE_ACCELERATION = 120;
+constexpr uint32_t PROFILE_DECELERATION = 120;
+constexpr uint32_t QUICK_STOP_DECELERATION = 10020;
 } // namespace
 
 hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
@@ -323,7 +327,7 @@ SynapticonSystemInterface::write(const rclcpp::Time & /*time*/,
         std::clamp(hw_commands_efforts_[i], -1000.0, 1000.0);
     threadsafe_commands_efforts_[i] = hw_commands_efforts_[i];
     threadsafe_commands_velocities_[i] = hw_commands_velocities_[i] * RAD_PER_S_TO_RPM;
-    threadsafe_commands_positions_[i] = hw_commands_positions_[i];
+    threadsafe_commands_positions_[i] = hw_commands_positions_[i] * encoder_resolution_ / (2 * 3.14159);
   }
 
   return hardware_interface::return_type::OK;
@@ -500,9 +504,12 @@ void SynapticonSystemInterface::somanetCyclicLoop(
               }
             } else if (control_level_[joint_idx] == control_level_t::POSITION) {
               if (!std::isnan(threadsafe_commands_positions_[joint_idx])) {
-                out_somanet_1_[joint_idx]->TargetPosition =
-                    threadsafe_commands_positions_[joint_idx];
+                out_somanet_1_[joint_idx]->TargetPosition = threadsafe_commands_positions_[joint_idx];
                 out_somanet_1_[joint_idx]->OpMode = CYCLIC_POSITION_MODE;
+                // ec_SDOwrite(1, 0x6081, 0x00, FALSE, sizeof(PROFILE_VELOCITY), &PROFILE_VELOCITY, EC_TIMEOUTRXM);
+                // ec_SDOwrite(1, 0x6083, 0x00, FALSE, sizeof(PROFILE_ACCELERATION), &PROFILE_ACCELERATION, EC_TIMEOUTRXM);
+                // ec_SDOwrite(1, 0x6084, 0x00, FALSE, sizeof(PROFILE_DECELERATION), &PROFILE_DECELERATION, EC_TIMEOUTRXM);
+                // ec_SDOwrite(1, 0x6085, 0x00, FALSE, sizeof(QUICK_STOP_DECELERATION), &QUICK_STOP_DECELERATION, EC_TIMEOUTRXM);
               }
             }
             // If in UNDEFINED mode, send a velocity command of 0
@@ -520,10 +527,10 @@ void SynapticonSystemInterface::somanetCyclicLoop(
         // printf(" DemandPos: %" PRId32 " ,",
         // in_somanet_1_[0]->PositionDemandInternalValue); printf(" ActualVel:
         // %" PRId32 " ,", in_somanet_1_[0]->VelocityValue);
-        printf(" DemandVel: %" PRId32 " ,", in_somanet_1_[0]->VelocityDemandValue);
+        // printf(" DemandVel: %" PRId32 " ,", in_somanet_1_[0]->VelocityDemandValue);
         //printf("ActualTorque: %" PRId32 " ,", in_somanet_1_[0]->TorqueValue);
         // printf(" DemandTorque: %" PRId32 " ,", in_somanet_1_[0]->TorqueDemand);
-        printf("\n");
+        // printf("\n");
 
         // printf(" T:%" PRId64 "\r", ec_DCtime);
         needlf_ = true;
