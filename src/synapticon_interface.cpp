@@ -97,9 +97,9 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
   }
 
   // A thread to handle ethercat errors
-  // osal_thread_create(&ecat_error_thread_, 128000,
-  //                    (void *)&SynapticonSystemInterface::ecatCheck,
-  //                    (void *)&ctime);
+  osal_thread_create(&ecat_error_thread_, 128000,
+                     (void *)&SynapticonSystemInterface::ecatCheck,
+                     (void *)&ctime);
 
   // Ethercat initialization
   // Define the interface name (e.g. eth0 or eno0) in the ros2_control.xacro
@@ -452,10 +452,10 @@ void SynapticonSystemInterface::somanetCyclicLoop(
       if (wkc_ >= expected_wkc_) {
         for (size_t joint_idx = 0; joint_idx < num_joints_; ++joint_idx) {
           if (first_iteration.at(joint_idx)) {
-            // Default to CYCLIC_VELOCITY_MODE with a command vel of 0
-            out_somanet_1_[joint_idx]->OpMode = CYCLIC_VELOCITY_MODE;
+            // Default to PROFILE_TORQUE_MODE
+            out_somanet_1_[joint_idx]->OpMode = PROFILE_TORQUE_MODE;
             out_somanet_1_[joint_idx]->TorqueOffset = 0;
-            out_somanet_1_[joint_idx]->VelocityOffset = 0;
+            out_somanet_1_[joint_idx]->TargetTorque = 0;
             first_iteration.at(joint_idx) = false;
           }
 
@@ -489,12 +489,14 @@ void SynapticonSystemInterface::somanetCyclicLoop(
                 out_somanet_1_[joint_idx]->TargetTorque =
                     threadsafe_commands_efforts_[joint_idx];
                 out_somanet_1_[joint_idx]->OpMode = PROFILE_TORQUE_MODE;
+                out_somanet_1_[joint_idx]->TorqueOffset = 0;
               }
             } else if (control_level_[joint_idx] == control_level_t::VELOCITY) {
               if (!std::isnan(threadsafe_commands_velocities_[joint_idx])) {
                 out_somanet_1_[joint_idx]->TargetVelocity =
                     threadsafe_commands_velocities_[joint_idx];
                 out_somanet_1_[joint_idx]->OpMode = CYCLIC_VELOCITY_MODE;
+                out_somanet_1_[joint_idx]->VelocityOffset = 0;
               }
             } else if (control_level_[joint_idx] == control_level_t::POSITION) {
               if (!std::isnan(threadsafe_commands_positions_[joint_idx])) {
@@ -505,8 +507,8 @@ void SynapticonSystemInterface::somanetCyclicLoop(
             }
             // If in UNDEFINED mode, send a velocity command of 0
             else if (control_level_[joint_idx] == control_level_t::UNDEFINED) {
-              out_somanet_1_[joint_idx]->TargetVelocity = 0;
-              out_somanet_1_[joint_idx]->OpMode = CYCLIC_VELOCITY_MODE;
+              out_somanet_1_[joint_idx]->OpMode = PROFILE_TORQUE_MODE;
+              out_somanet_1_[joint_idx]->TorqueOffset = 0;
             }
           }
         }
