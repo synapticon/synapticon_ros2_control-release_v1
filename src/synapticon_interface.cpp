@@ -19,10 +19,6 @@ constexpr size_t CYCLIC_VELOCITY_MODE = 9;
 constexpr size_t CYCLIC_POSITION_MODE = 8;
 constexpr double RPM_TO_RAD_PER_S = 0.10472;
 constexpr double RAD_PER_S_TO_RPM = 1 / RPM_TO_RAD_PER_S;
-constexpr uint32_t PROFILE_VELOCITY = 60;
-constexpr uint32_t PROFILE_ACCELERATION = 120;
-constexpr uint32_t PROFILE_DECELERATION = 120;
-constexpr uint32_t QUICK_STOP_DECELERATION = 10020;
 } // namespace
 
 hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
@@ -220,6 +216,7 @@ SynapticonSystemInterface::prepare_command_mode_switch(
   for (std::string key : stop_interfaces) {
     for (std::size_t i = 0; i < num_joints_; i++) {
       if (key.find(info_.joints[i].name) != std::string::npos) {
+        hw_commands_positions_[i] = std::numeric_limits<double>::quiet_NaN();
         hw_commands_velocities_[i] = 0;
         hw_commands_efforts_[i] = 0;
         threadsafe_commands_efforts_[i] =
@@ -253,7 +250,7 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_activate(
     const rclcpp_lifecycle::State & /*previous_state*/) {
 
   // Set some default values
-  for (std::size_t i = 0; i < hw_states_positions_.size(); i++) {
+  for (std::size_t i = 0; i < num_joints_; i++) {
     if (std::isnan(hw_states_positions_[i])) {
       hw_states_positions_[i] = 0;
     }
@@ -506,13 +503,8 @@ void SynapticonSystemInterface::somanetCyclicLoop(
               if (!std::isnan(threadsafe_commands_positions_[joint_idx])) {
                 out_somanet_1_[joint_idx]->TargetPosition = threadsafe_commands_positions_[joint_idx];
                 out_somanet_1_[joint_idx]->OpMode = CYCLIC_POSITION_MODE;
-                // ec_SDOwrite(1, 0x6081, 0x00, FALSE, sizeof(PROFILE_VELOCITY), &PROFILE_VELOCITY, EC_TIMEOUTRXM);
-                // ec_SDOwrite(1, 0x6083, 0x00, FALSE, sizeof(PROFILE_ACCELERATION), &PROFILE_ACCELERATION, EC_TIMEOUTRXM);
-                // ec_SDOwrite(1, 0x6084, 0x00, FALSE, sizeof(PROFILE_DECELERATION), &PROFILE_DECELERATION, EC_TIMEOUTRXM);
-                // ec_SDOwrite(1, 0x6085, 0x00, FALSE, sizeof(QUICK_STOP_DECELERATION), &QUICK_STOP_DECELERATION, EC_TIMEOUTRXM);
               }
             }
-            // If in UNDEFINED mode, send a velocity command of 0
             else if (control_level_[joint_idx] == control_level_t::UNDEFINED) {
               out_somanet_1_[joint_idx]->OpMode = PROFILE_TORQUE_MODE;
               out_somanet_1_[joint_idx]->TorqueOffset = 0;
