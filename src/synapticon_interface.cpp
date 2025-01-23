@@ -264,6 +264,7 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_activate(
       hw_states_efforts_[i] = 0;
     }
 
+    hw_commands_positions_[i] = std::numeric_limits<double>::quiet_NaN();
     hw_commands_velocities_[i] = 0;
     hw_commands_efforts_[i] = 0;
     threadsafe_commands_efforts_[i] = std::numeric_limits<double>::quiet_NaN();
@@ -320,11 +321,20 @@ SynapticonSystemInterface::write(const rclcpp::Time & /*time*/,
   // Share the commands with somanet control loop in a threadsafe way
   for (std::size_t i = 0; i < num_joints_; i++) {
     // Torque commands are "per thousand of rated torque"
-    hw_commands_efforts_[i] =
-        std::clamp(hw_commands_efforts_[i], -1000.0, 1000.0);
-    threadsafe_commands_efforts_[i] = hw_commands_efforts_[i];
-    threadsafe_commands_velocities_[i] = hw_commands_velocities_[i] * RAD_PER_S_TO_RPM;
-    threadsafe_commands_positions_[i] = hw_commands_positions_[i] * encoder_resolution_ / (2 * 3.14159);
+    if (!std::isnan(hw_commands_efforts_[i]))
+    {
+      hw_commands_efforts_[i] =
+          std::clamp(hw_commands_efforts_[i], -1000.0, 1000.0);
+      threadsafe_commands_efforts_[i] = hw_commands_efforts_[i];
+    }
+    if (!std::isnan(hw_commands_velocities_[i]))
+    {
+      threadsafe_commands_velocities_[i] = hw_commands_velocities_[i] * RAD_PER_S_TO_RPM;
+    }
+    if (!std::isnan(hw_commands_positions_[i]))
+    {
+      threadsafe_commands_positions_[i] = hw_commands_positions_[i] * encoder_resolution_ / (2 * 3.14159);
+    }
   }
 
   return hardware_interface::return_type::OK;
