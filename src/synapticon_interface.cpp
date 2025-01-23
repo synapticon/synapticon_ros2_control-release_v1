@@ -251,9 +251,6 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_activate(
 
   // Set some default values
   for (std::size_t i = 0; i < num_joints_; i++) {
-    if (std::isnan(hw_states_positions_[i])) {
-      hw_states_positions_[i] = 0;
-    }
     if (std::isnan(hw_states_velocities_[i])) {
       hw_states_velocities_[i] = 0;
     }
@@ -513,6 +510,7 @@ void SynapticonSystemInterface::somanetCyclicLoop(
               if (!std::isnan(threadsafe_commands_positions_[joint_idx])) {
                 out_somanet_1_[joint_idx]->TargetPosition = threadsafe_commands_positions_[joint_idx];
                 out_somanet_1_[joint_idx]->OpMode = CYCLIC_POSITION_MODE;
+                out_somanet_1_[joint_idx]->VelocityOffset = 0;
               }
             }
             else if (control_level_[joint_idx] == control_level_t::UNDEFINED) {
