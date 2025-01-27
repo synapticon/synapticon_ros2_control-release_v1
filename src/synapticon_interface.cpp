@@ -19,6 +19,9 @@ constexpr size_t CYCLIC_VELOCITY_MODE = 9;
 constexpr size_t CYCLIC_POSITION_MODE = 8;
 constexpr double RPM_TO_RAD_PER_S = 0.10472;
 constexpr double RAD_PER_S_TO_RPM = 1 / RPM_TO_RAD_PER_S;
+unsigned int NORMAL_OPERATION_BRAKES_OFF = 0b00001111;
+// Bit 2 (0-indexed) goes to 0 to turn on Quick Stop
+unsigned int NORMAL_OPERATION_BRAKES_ON = 0b00001011;
 } // namespace
 
 hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
@@ -46,6 +49,8 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
                                  std::numeric_limits<double>::quiet_NaN());
   hw_commands_efforts_.resize(num_joints_,
                               std::numeric_limits<double>::quiet_NaN());
+  hw_commands_quick_stop_.resize(num_joints_,
+                              std::numeric_limits<double>::quiet_NaN());
   control_level_.resize(num_joints_, control_level_t::UNDEFINED);
   // Atomic deques are difficult to initialize
   threadsafe_commands_efforts_.resize(num_joints_);
@@ -67,13 +72,17 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
           joint.command_interfaces[0].name ==
               hardware_interface::HW_IF_VELOCITY ||
           joint.command_interfaces[0].name ==
+              "quick_stop" ||
+          joint.command_interfaces[0].name ==
               hardware_interface::HW_IF_EFFORT)) {
       RCLCPP_FATAL(
           get_logger(),
-          "Joint '%s' has %s command interface. Expected %s, %s, or %s.",
+          "Joint '%s' has %s command interface. Expected %s, %s, %s, or %s.",
           joint.name.c_str(), joint.command_interfaces[0].name.c_str(),
           hardware_interface::HW_IF_POSITION,
-          hardware_interface::HW_IF_VELOCITY, hardware_interface::HW_IF_EFFORT);
+          hardware_interface::HW_IF_VELOCITY,
+          "quick_stop",
+          hardware_interface::HW_IF_EFFORT);
       return hardware_interface::CallbackReturn::ERROR;
     }
 
@@ -184,7 +193,7 @@ SynapticonSystemInterface::prepare_command_mode_switch(
     const std::vector<std::string> &stop_interfaces) {
   // Prepare for new command modes
   std::vector<control_level_t> new_modes = {};
-  for (std::string key : start_interfaces) {
+  for (const std::string& key : start_interfaces) {
     for (std::size_t i = 0; i < info_.joints.size(); i++) {
       if (key ==
           info_.joints[i].name + "/" + hardware_interface::HW_IF_EFFORT) {
@@ -195,6 +204,8 @@ SynapticonSystemInterface::prepare_command_mode_switch(
       } else if (key == info_.joints[i].name + "/" +
                             hardware_interface::HW_IF_POSITION) {
         new_modes.push_back(control_level_t::POSITION);
+      } else if (key == info_.joints[i].name + "/quick_stop") {
+        new_modes.push_back(control_level_t::QUICK_STOP);
       }
     }
   }
@@ -213,7 +224,7 @@ SynapticonSystemInterface::prepare_command_mode_switch(
   }
 
   // Stop motion on all relevant joints
-  for (std::string key : stop_interfaces) {
+  for (const std::string& key : stop_interfaces) {
     for (std::size_t i = 0; i < num_joints_; i++) {
       if (key.find(info_.joints[i].name) != std::string::npos) {
         hw_commands_positions_[i] = std::numeric_limits<double>::quiet_NaN();
@@ -229,7 +240,7 @@ SynapticonSystemInterface::prepare_command_mode_switch(
     }
   }
 
-  for (std::string key : start_interfaces) {
+  for (const std::string& key : start_interfaces) {
     for (std::size_t i = 0; i < num_joints_; i++) {
       if (key.find(info_.joints[i].name) != std::string::npos) {
         if (control_level_[i] != control_level_t::UNDEFINED) {
@@ -370,6 +381,9 @@ SynapticonSystemInterface::export_command_interfaces() {
     command_interfaces.emplace_back(hardware_interface::CommandInterface(
         info_.joints[i].name, hardware_interface::HW_IF_EFFORT,
         &hw_commands_efforts_[i]));
+    command_interfaces.emplace_back(hardware_interface::CommandInterface(
+        info_.joints[i].name, "quick_stop",
+        &hw_commands_quick_stop_[i]));
   }
   return command_interfaces;
 }
@@ -486,7 +500,7 @@ void SynapticonSystemInterface::somanetCyclicLoop(
           // Enable operation: Switched on -> Operation enabled
           else if ((in_somanet_1_[joint_idx]->Statusword &
                     0b0000000001101111) == 0b0000000000100011)
-            out_somanet_1_[joint_idx]->Controlword = 0b00001111;
+            out_somanet_1_[joint_idx]->Controlword = NORMAL_OPERATION_BRAKES_OFF;
 
           // Normal operation
           else if ((in_somanet_1_[joint_idx]->Statusword &
@@ -498,6 +512,7 @@ void SynapticonSystemInterface::somanetCyclicLoop(
                     threadsafe_commands_efforts_[joint_idx];
                 out_somanet_1_[joint_idx]->OpMode = PROFILE_TORQUE_MODE;
                 out_somanet_1_[joint_idx]->TorqueOffset = 0;
+                out_somanet_1_[joint_idx]->Controlword = NORMAL_OPERATION_BRAKES_OFF;
               }
             } else if (control_level_[joint_idx] == control_level_t::VELOCITY) {
               if (!std::isnan(threadsafe_commands_velocities_[joint_idx])) {
@@ -505,17 +520,23 @@ void SynapticonSystemInterface::somanetCyclicLoop(
                     threadsafe_commands_velocities_[joint_idx];
                 out_somanet_1_[joint_idx]->OpMode = CYCLIC_VELOCITY_MODE;
                 out_somanet_1_[joint_idx]->VelocityOffset = 0;
+                out_somanet_1_[joint_idx]->Controlword = NORMAL_OPERATION_BRAKES_OFF;
               }
             } else if (control_level_[joint_idx] == control_level_t::POSITION) {
               if (!std::isnan(threadsafe_commands_positions_[joint_idx])) {
                 out_somanet_1_[joint_idx]->TargetPosition = threadsafe_commands_positions_[joint_idx];
                 out_somanet_1_[joint_idx]->OpMode = CYCLIC_POSITION_MODE;
                 out_somanet_1_[joint_idx]->VelocityOffset = 0;
+                out_somanet_1_[joint_idx]->Controlword = NORMAL_OPERATION_BRAKES_OFF;
               }
-            }
-            else if (control_level_[joint_idx] == control_level_t::UNDEFINED) {
+            } else if (control_level_[joint_idx] == control_level_t::QUICK_STOP) {
               out_somanet_1_[joint_idx]->OpMode = PROFILE_TORQUE_MODE;
               out_somanet_1_[joint_idx]->TorqueOffset = 0;
+              out_somanet_1_[joint_idx]->Controlword = NORMAL_OPERATION_BRAKES_ON;
+            } else if (control_level_[joint_idx] == control_level_t::UNDEFINED) {
+              out_somanet_1_[joint_idx]->OpMode = PROFILE_TORQUE_MODE;
+              out_somanet_1_[joint_idx]->TorqueOffset = 0;
+              out_somanet_1_[joint_idx]->Controlword = NORMAL_OPERATION_BRAKES_OFF;
             }
           }
         }

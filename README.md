@@ -140,3 +140,7 @@ Publish commmands from the command line like so:
 `ros2 service call /controller_manager/switch_controller controller_manager_msgs/srv/SwitchController activate_controllers:\ ["forward_velocity_controller"]`
 
 `ros2 topic pub /forward_velocity_controller/commands std_msgs/msg/Float64MultiArray data:\ [0.1]`
+
+"Quick Stop mode" is activated like so:
+
+`ros2 service call /controller_manager/switch_controller controller_manager_msgs/srv/SwitchController "{activate_controllers: ['quick_stop_controller'], deactivate_controllers: ['forward_velocity_controller']}"`

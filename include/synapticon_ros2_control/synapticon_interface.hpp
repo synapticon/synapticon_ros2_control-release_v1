@@ -119,6 +119,8 @@ private:
   std::vector<double> hw_commands_positions_;
   std::vector<double> hw_commands_velocities_;
   std::vector<double> hw_commands_efforts_;
+  // hw_commands_quick_stop_ is never actually used, just a placeholder for compilation
+  std::vector<double> hw_commands_quick_stop_;
   std::vector<double> hw_states_positions_;
   std::vector<double> hw_states_velocities_;
   std::vector<double> hw_states_accelerations_;
@@ -129,12 +131,12 @@ private:
   std::deque<std::atomic<double>> threadsafe_commands_positions_;
 
   // Enum defining current control level
-  // TODO: enable position commands
   enum control_level_t : std::uint8_t {
     UNDEFINED = 0,
     EFFORT = 1, // aka torque
     VELOCITY = 2,
     POSITION = 3,
+    QUICK_STOP = 4,
   };
 
   // Active control mode for each actuator
