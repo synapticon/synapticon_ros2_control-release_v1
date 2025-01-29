@@ -505,8 +505,14 @@ void SynapticonSystemInterface::somanetCyclicLoop(
           // Shutdown: Switch on disabled -> Ready to switch on
           else if ((in_somanet_1_[joint_idx]->Statusword &
                     0b0000000001001111) == 0b0000000001000000)
-            out_somanet_1_[joint_idx]->Controlword = 0b00000110;
-
+          {
+            // If the QUICK_STOP controller is on, don't leave this state
+            if ((control_level_[joint_idx] != control_level_t::QUICK_STOP) &&
+               (control_level_[joint_idx] != control_level_t::UNDEFINED))
+            {
+              out_somanet_1_[joint_idx]->Controlword = 0b00000110;
+            }
+          }
           // Switch on: Ready to switch on -> Switched on
           else if ((in_somanet_1_[joint_idx]->Statusword &
                     0b0000000001101111) == 0b0000000000100001)
@@ -544,7 +550,9 @@ void SynapticonSystemInterface::somanetCyclicLoop(
                 out_somanet_1_[joint_idx]->VelocityOffset = 0;
                 out_somanet_1_[joint_idx]->Controlword = NORMAL_OPERATION_BRAKES_OFF;
               }
-            } else if (control_level_[joint_idx] == control_level_t::QUICK_STOP) {
+            } else if (control_level_[joint_idx] == control_level_t::QUICK_STOP)
+            {
+              // Turn the brake on
               out_somanet_1_[joint_idx]->OpMode = PROFILE_TORQUE_MODE;
               out_somanet_1_[joint_idx]->TorqueOffset = 0;
               out_somanet_1_[joint_idx]->Controlword = NORMAL_OPERATION_BRAKES_ON;
