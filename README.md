@@ -22,6 +22,8 @@ Clone this repository into the `src` folder then build it:
 
 `cd ~/ros2_ws`
 
+`rosdep install --from-paths src -y --ignore-src`
+
 `colcon build`
 
 ### Ethernet connection ###
