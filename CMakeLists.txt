@@ -37,10 +37,11 @@ add_library(synapticon_soem STATIC
 set_property(TARGET synapticon_soem PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(synapticon_soem ${OS_LIBS})
 target_include_directories(synapticon_soem PUBLIC
-  osal
-  osal/${OS}
-  oshw/${OS}
-  soem
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/osal>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/osal/${OS}>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/oshw/${OS}>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/soem>
+  $<INSTALL_INTERFACE:include/synapticon_ros2_control>
 )
 
 # ros2_control plugin library
@@ -77,6 +78,7 @@ install(
 )
 install(
   TARGETS synapticon_ros2_control synapticon_soem torque_control_executable
+  EXPORT synapticon_soem
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
@@ -101,4 +103,12 @@ if(BUILD_TESTING)
 endif()
 
 ament_export_dependencies(${THIS_PACKAGE_INCLUDE_DEPENDS})
+ament_export_include_directories(
+  include
+  ${CMAKE_CURRENT_SOURCE_DIR}/osal
+  ${CMAKE_CURRENT_SOURCE_DIR}/osal/${OS}
+  ${CMAKE_CURRENT_SOURCE_DIR}/oshw/${OS}
+  ${CMAKE_CURRENT_SOURCE_DIR}/soem
+)
+ament_export_targets(synapticon_soem HAS_LIBRARY_TARGET)
 ament_package()
