@@ -58,6 +58,8 @@ This is a simple executable, separate from ros2_control. The motor seeks to main
 
 ### ros2_control example on actual hardware ###
 
+We present two options for launching the controller. The first option is the better way, the second option is the quick and easy way.
+
 #### Option 1: Set up a systemd service to grant socket communication privileges to ros2_control_node ####
 
 We often run `ros2_control_node` in a systemd service because it needs elevated permissions to communicate over ethercat (without `sudo`).
@@ -111,7 +113,7 @@ Check service status and see the ROS console logging:
 
 `sudo systemctl status ros2_control_node.service`
 
-#### Launching the ros2_control example ####
+Launch the ros2_control example:
 
 `sudo systemctl restart ros2_control_node.service`
 
@@ -138,6 +140,10 @@ Then do the launching:
 `ros2 launch synapticon_ros2_control elevated_permissions.launch.py`
 
 `ros2 launch synapticon_ros2_control single_dof.launch.py`
+
+#### Sending commands to the motor
+
+Whether you followed Option 1 or Option 2 above, you send commands to the motors in the same way.
 
 Check the status like so:
 
