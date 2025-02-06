@@ -38,25 +38,29 @@ I configured a wired ethernet connection with the following settings:
 
 Connect your PC to the Synapticon drive with an ethernet cable.
 
+#### Changes needed depending on your ethernet interface name ####
+
+If your ethernet interface name is not `eno0` you need to make these changes:
+
+- `src/torque_control_executable.cpp`, rename `eno0`
+
+- `description/ros2_control/single_dof.ros2_control.xacro`, rename `eno0`
+
+- recompile with `colcon build`
+
 ### Simple zero-torque control example on hardware ###
 
 This is a simple executable, separate from ros2_control. The motor seeks to maintain zero torque. Use it to check your ethercat connection.
 
 `cd ros2_ws/install/synapticon_ros2_control/bin`
 
-Give the application the correct privileges. This only needs to be run once, or after every build:
-
-`sudo setcap cap_net_raw=ep torque_control_executable`
-
-Change the "interface_name" variable and recompile if your ethernet interface is not named `eno0`. Finally, run the example with:
-
-`torque_control_executable`
+`sudo ./torque_control_executable`
 
 ### ros2_control example on actual hardware ###
 
-#### Set up a systemd service to grant socket communication privileges to ros2_control_node ####
+#### Option 1: Set up a systemd service to grant socket communication privileges to ros2_control_node ####
 
-We run `ros2_control_node` in a systemd service because it needs elevated permissions to communicate over ethercat (without `sudo`).
+We often run `ros2_control_node` in a systemd service because it needs elevated permissions to communicate over ethercat (without `sudo`).
 
 Set it up like so:
 
@@ -117,7 +121,9 @@ Stop the `ros2_control_node` with:
 
 `sudo systemctl stop ros2_control_node.service`
 
-Alternatively, launch everything as sudo. This is not recommended but it prints more nicely, for debugging.
+#### Option 2: Launch everything as sudo ####
+
+As an alternative to systemd, launch everything as sudo. This is not recommended in the long term but it's easy and it prints more nicely, for debugging.
 
 Open 2 terminals and do sourcing for each of them like so:
 
