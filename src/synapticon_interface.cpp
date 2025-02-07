@@ -37,6 +37,7 @@ constexpr double RAD_PER_S_TO_RPM = 1 / RPM_TO_RAD_PER_S;
 unsigned int NORMAL_OPERATION_BRAKES_OFF = 0b00001111;
 // Bit 2 (0-indexed) goes to 0 to turn on Quick Stop
 unsigned int NORMAL_OPERATION_BRAKES_ON = 0b00001011;
+constexpr char EXPECTED_SLAVE_NAME[] = "SOMANET";
 } // namespace
 
 hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
@@ -171,7 +172,7 @@ hardware_interface::CallbackReturn SynapticonSystemInterface::on_init(
   }
 
   // Connect struct pointers to I/O
-  for (size_t joint_idx = 0; joint_idx < num_joints_; ++joint_idx) {
+  for (size_t joint_idx = 1; joint_idx < (num_joints_ + 1); ++joint_idx) {
     in_somanet_1_.push_back((InSomanet50t *)ec_slave[joint_idx].inputs);
     out_somanet_1_.push_back((OutSomanet50t *)ec_slave[joint_idx].outputs);
   }
@@ -426,10 +427,14 @@ OSAL_THREAD_FUNC SynapticonSystemInterface::ecatCheck(void * /*ptr*/) {
         needlf_ = false;
         printf("\n");
       }
-      // one ore more slaves are not responding
+      // one or more slaves are not responding
       ec_group[currentgroup].docheckstate = false;
       ec_readstate();
       for (slave = 1; slave <= ec_slavecount; slave++) {
+        if (ec_slave[slave].name != EXPECTED_SLAVE_NAME)
+        {
+          continue;
+        }
         if ((ec_slave[slave].group == currentgroup) &&
             (ec_slave[slave].state != EC_STATE_OPERATIONAL)) {
           ec_group[currentgroup].docheckstate = true;
