@@ -32,7 +32,7 @@ Additionally, in order to make it compatible with other Linux distributions, we 
 
 >### Hardware 
 >
->The provided package assumes that the laptop on which the setup is used has only one Ethernet port and that only one device is connected at the time. Connection of the external encoders (if internal ones are not used) is labeled with cyan color. Hardware can be >used once the parameters are configured with [OBLAC tools](https://www.synapticon.com/en/products/oblac-drives). Detailed instructions and wiring diagrams for all the devices are available at our [official web page](https://www.synapticon.com/en/support/>dokumentation) documentation. The simplified block diagram of the wiring used in this setup is given below: 
+>The provided package assumes that the laptop on which the setup is used has only one Ethernet port and that only one device is connected at the time. Connection of the external encoders (if internal ones are not used) is labeled with cyan color. Hardware can be used once the parameters are configured with [OBLAC tools](https://www.synapticon.com/en/products/oblac-drives). Detailed instructions and wiring diagrams for all the devices are available at our [official web page](https://www.synapticon.com/en/support/dokumentation) documentation. The simplified block diagram of the wiring used in this setup is given below: 
 >
 >![Alt text](https://cdn.prod.website-files.com/651ab5ec2db08ef390555f5a/67ac9fd5cfdd05cdbe2c0a4d_ROS2_Overview.jpg)
 >
@@ -111,9 +111,9 @@ Additionally, in order to make it compatible with other Linux distributions, we 
 >>>```bash
 >>>git clone https://github.com/synapticon/synapticon_ros2_control
 >>>```
->>>After cloning it, you need to set up the ethernet interface. To do so, first execute ifconfig and remember the interface name.
+>>>After cloning it, you need to set up the ethernet interface. To do so, first execute `ifconfig` and remember the interface name.
 >>>
->>>After that, replace the “eno0”  with your ethernet interface in `/home/USER/ros2_ws/src/synapticon_ros2_control/src/torque_control_executable.cpp` and `/home/USER/ros2_ws/src/synapticon_ros2_control/description/ros2_control/single_dof.ros2_control.xacro`. 
+>>>After that, replace the `eno0`  with your ethernet interface in `/home/USER/ros2_ws/src/synapticon_ros2_control/src/torque_control_executable.cpp` and `/home/USER/ros2_ws/src/synapticon_ros2_control/description/ros2_control/single_dof.ros2_control.xacro`. 
 >>>Alternatively, you can do it with commands:
 >>>```bash
 >>>sed -i "s/eno0/YOUR_ETHERNET_INTERFACE/g" /home/USER/ros2_ws/src/synapticon_ros2_control/src/torque_control_executable.cpp 
@@ -158,7 +158,7 @@ Additionally, in order to make it compatible with other Linux distributions, we 
 >>>ros2 control list_controllers
 >>>```
 >>>(Information does not automatically refresh - it can be refreshed each M seconds 
->>>using "watch -n M ros2 control list_controllers", but the output might be ugly)
+>>>using `watch -n M ros2 control list_controllers`, but the output might be ugly)
 >>>- Running the motor with different controllers:
 >>>
 >>>>CSV (Cyclic Sync Velocity) mode:
@@ -196,7 +196,7 @@ Additionally, in order to make it compatible with other Linux distributions, we 
 >>>>```bash
 >>>>ros2 service call /controller_manager/switch_controller controller_manager_msgs/srv/SwitchController "{activate_controllers: ['forward_torque_controller'], deactivate_controllers: [quick_stop_controller]}"	
 >>>>```
->>>>Terminal 5 to create a publisher (value is in permil of torque):
+>>>>Terminal 5 to create a publisher (value is in per mille of torque):
 >>>>```bash
 >>>>ros2 topic pub /forward_torque_controller/commands std_msgs/msg/Float64MultiArray data:\ [100]	
 >>>>```
@@ -206,7 +206,7 @@ Additionally, in order to make it compatible with other Linux distributions, we 
 >>>>```
 >>>##### Running Without Sudo (Optional)
 >>>
->>>If you want to run the example without using “sudo”, you need to create:
+>>>If you want to run the example without using `sudo`, you need to create:
 >>>```bash
 >>>sudo touch /etc/systemd/system/ros2_control_node.service
 >>>```
@@ -318,7 +318,7 @@ Additionally, in order to make it compatible with other Linux distributions, we 
 >>>```bash
 >>>ros2 launch synapticon_ros2_control elevated_permissions.launch.py
 >>>```
->>>- Terminal 2 - this one will open RViZ (if it fails, you forgot to execute "xhost +" on your host machine). If you spin the motor by hand, you should see the movement in RViZ.
+>>>- Terminal 2 - this one will open RViZ (if it fails, you forgot to execute `xhost +` on your host machine). If you spin the motor by hand, you should see the movement in RViZ.
 >>>```bash
 >>>ros2 launch synapticon_ros2_control single_dof.launch.py
 >>>```
@@ -327,7 +327,7 @@ Additionally, in order to make it compatible with other Linux distributions, we 
 >>>ros2 control list_controllers
 >>>```
 >>>(Information does not automatically refresh - it can be refreshed each M seconds 
->>>using "watch -n M ros2 control list_controllers", but the output might be ugly)
+>>>using `watch -n M ros2 control list_controllers`, but the output might be ugly)
 >>>
 >>>>- Running the motor with different controllers:
 >>>>CSV (Cyclic Sync Velocity) mode:
