@@ -110,5 +110,10 @@ ament_export_include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/oshw/${OS}
   ${CMAKE_CURRENT_SOURCE_DIR}/soem
 )
+
+# Install meshes directory
+install(DIRECTORY meshes/
+  DESTINATION share/${PROJECT_NAME}/meshes
+)
 ament_export_targets(synapticon_soem HAS_LIBRARY_TARGET)
 ament_package()
