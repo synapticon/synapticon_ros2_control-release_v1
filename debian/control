@@ -1,0 +1,12 @@
+Source: ros-humble-synapticon-ros2-control
+Section: misc
+Priority: optional
+Maintainer: Elevate Robotics <andyzelenak@elevaterobotics.ai>
+Build-Depends: debhelper (>= 9.0.0), libcap-dev, ros-humble-ament-cmake, ros-humble-hardware-interface, ros-humble-pluginlib, ros-humble-rclcpp, ros-humble-rclcpp-lifecycle, ros-humble-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-humble-synapticon-ros2-control
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libcap-dev, ros-humble-controller-manager, ros-humble-forward-command-controller, ros-humble-hardware-interface, ros-humble-joint-state-broadcaster, ros-humble-joint-trajectory-controller, ros-humble-pluginlib, ros-humble-rclcpp, ros-humble-rclcpp-lifecycle, ros-humble-robot-state-publisher, ros-humble-ros2controlcli, ros-humble-ros2launch, ros-humble-xacro, ros-humble-ros-workspace
+Description: A ros2_control interface for Synapticon motor drivers
